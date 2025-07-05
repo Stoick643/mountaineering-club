@@ -69,6 +69,9 @@
                             <a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a>
                         </li>
                         <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('trip_reports') }}">Trip Reports</a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link" href="#" onclick="showChat()">Chat</a>
                         </li>
                         {% if session.is_admin %}

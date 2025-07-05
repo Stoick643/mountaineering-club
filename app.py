@@ -278,6 +278,156 @@ def delete_announcement(announcement_id):
     
     return redirect(url_for('admin_announcements'))
 
+# Trip Reports routes
+@app.route('/trip-reports')
+@login_required
+def trip_reports():
+    page = request.args.get('page', 1, type=int)
+    per_page = 6  # 6 trip reports per page
+    
+    # Get total count for pagination
+    total = mongo.db.trip_reports.count_documents({})
+    
+    # Get trip reports with pagination
+    trip_reports = list(mongo.db.trip_reports.find()
+                       .sort('created_at', -1)
+                       .skip((page - 1) * per_page)
+                       .limit(per_page))
+    
+    # Calculate pagination
+    has_prev = page > 1
+    has_next = (page * per_page) < total
+    prev_num = page - 1 if has_prev else None
+    next_num = page + 1 if has_next else None
+    
+    return render_template('trip_reports.html', 
+                         trip_reports=trip_reports,
+                         has_prev=has_prev,
+                         has_next=has_next,
+                         prev_num=prev_num,
+                         next_num=next_num,
+                         page=page)
+
+@app.route('/trip-reports/create', methods=['GET', 'POST'])
+@login_required
+def create_trip_report():
+    if request.method == 'POST':
+        title = request.form.get('title')
+        description = request.form.get('description')
+        location = request.form.get('location')
+        date = request.form.get('date')
+        difficulty = request.form.get('difficulty')
+        
+        if not all([title, description, location, date]):
+            flash('Please fill in all required fields', 'error')
+            return render_template('create_trip_report.html')
+        
+        # Handle file uploads
+        uploaded_photos = []
+        files = request.files.getlist('photos')
+        
+        for file in files:
+            if file and file.filename:
+                try:
+                    # Upload to Cloudinary
+                    result = cloudinary.uploader.upload(
+                        file,
+                        folder="mountaineering_club/trip_reports",
+                        transformation=[
+                            {'width': 1200, 'height': 800, 'crop': 'limit'},
+                            {'quality': 'auto', 'fetch_format': 'auto'}
+                        ]
+                    )
+                    
+                    uploaded_photos.append({
+                        'public_id': result['public_id'],
+                        'url': result['secure_url'],
+                        'thumbnail_url': cloudinary.CloudinaryImage(result['public_id']).build_url(
+                            width=300, height=200, crop='fill', quality='auto'
+                        )
+                    })
+                    
+                except Exception as e:
+                    logger.error(f"Error uploading image to Cloudinary: {e}")
+                    flash('Error uploading one or more images', 'warning')
+        
+        # Parse date
+        try:
+            trip_date = datetime.strptime(date, '%Y-%m-%d')
+        except ValueError:
+            flash('Invalid date format', 'error')
+            return render_template('create_trip_report.html')
+        
+        # Create trip report
+        trip_report_data = {
+            'title': title,
+            'description': description,
+            'location': location,
+            'trip_date': trip_date,
+            'difficulty': difficulty,
+            'photos': uploaded_photos,
+            'author_id': session['user_id'],
+            'author_name': session['user_name'],
+            'created_at': datetime.utcnow()
+        }
+        
+        result = mongo.db.trip_reports.insert_one(trip_report_data)
+        flash('Trip report created successfully!', 'success')
+        logger.info(f"User {session['user_name']} created trip report: {title}")
+        
+        return redirect(url_for('view_trip_report', trip_id=result.inserted_id))
+    
+    return render_template('create_trip_report.html')
+
+@app.route('/trip-reports/<trip_id>')
+@login_required
+def view_trip_report(trip_id):
+    try:
+        trip_report = mongo.db.trip_reports.find_one({'_id': ObjectId(trip_id)})
+        if not trip_report:
+            flash('Trip report not found', 'error')
+            return redirect(url_for('trip_reports'))
+        
+        return render_template('view_trip_report.html', trip_report=trip_report)
+    
+    except Exception as e:
+        logger.error(f"Error viewing trip report {trip_id}: {e}")
+        flash('Error loading trip report', 'error')
+        return redirect(url_for('trip_reports'))
+
+@app.route('/trip-reports/<trip_id>/delete')
+@login_required
+def delete_trip_report(trip_id):
+    try:
+        trip_report = mongo.db.trip_reports.find_one({'_id': ObjectId(trip_id)})
+        
+        if not trip_report:
+            flash('Trip report not found', 'error')
+            return redirect(url_for('trip_reports'))
+        
+        # Check if user owns the trip report or is admin
+        if trip_report['author_id'] != session['user_id'] and not session.get('is_admin', False):
+            flash('You can only delete your own trip reports', 'error')
+            return redirect(url_for('trip_reports'))
+        
+        # Delete photos from Cloudinary
+        for photo in trip_report.get('photos', []):
+            try:
+                cloudinary.uploader.destroy(photo['public_id'])
+            except Exception as e:
+                logger.error(f"Error deleting image from Cloudinary: {e}")
+        
+        # Delete trip report from database
+        mongo.db.trip_reports.delete_one({'_id': ObjectId(trip_id)})
+        flash('Trip report deleted successfully', 'success')
+        logger.info(f"User {session['user_name']} deleted trip report: {trip_report['title']}")
+        
+    except Exception as e:
+        logger.error(f"Error deleting trip report {trip_id}: {e}")
+        flash('Error deleting trip report', 'error')
+    
+    return redirect(url_for('trip_reports'))
+
 # WebSocket events for chat
 @socketio.on('join')
 def on_join(data):

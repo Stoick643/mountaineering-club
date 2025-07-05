@@ -46,12 +46,12 @@
                             <p class="card-text">Share your adventures</p>
                         </div>
                         <div class="align-self-center">
-                            <i class="fas fa-camera fa-2x"></i>
+                            <i class="fas fa-mountain fa-2x"></i>
                         </div>
                     </div>
-                    <button class="btn btn-outline-light btn-sm mt-2" onclick="showTripReportModal()">
-                        Add Report
-                    </button>
+                    <a href="{{ url_for('create_trip_report') }}" class="btn btn-outline-light btn-sm mt-2">
+                        <i class="fas fa-plus"></i> Add Report
+                    </a>
                 </div>
             </div>
         </div>
@@ -179,9 +179,6 @@
         loadRecentMessages();
     }
     
-    function showTripReportModal() {
-        alert('Trip Report feature coming soon!');
-    }
     
     function showWeatherModal() {
         alert('Weather feature coming soon!');

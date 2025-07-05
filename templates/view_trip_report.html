@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}{{ trip_report.title }} - Trip Reports{% endblock %}
+
+{% block head %}
+<style>
+    .photo-gallery img {
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
+    .photo-gallery img:hover {
+        transform: scale(1.05);
+    }
+    .modal-img {
+        max-width: 100%;
+        max-height: 80vh;
+        object-fit: contain;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h1>{{ trip_report.title }}</h1>
+                    <div class="text-muted mb-2">
+                        <i class="fas fa-map-marker-alt"></i> {{ trip_report.location }}
+                        {% if trip_report.difficulty %}
+                        | <i class="fas fa-signal"></i> {{ trip_report.difficulty }}
+                        {% endif %}
+                        | <i class="fas fa-calendar"></i> {{ trip_report.trip_date.strftime('%B %d, %Y') }}
+                    </div>
+                    <div class="text-muted">
+                        <i class="fas fa-user"></i> by {{ trip_report.author_name }}
+                        | <i class="fas fa-clock"></i> {{ trip_report.created_at.strftime('%B %d, %Y') }}
+                    </div>
+                </div>
+                <div>
+                    <a href="{{ url_for('trip_reports') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Reports
+                    </a>
+                    {% if trip_report.author_id == session.user_id or session.is_admin %}
+                    <a href="{{ url_for('delete_trip_report', trip_id=trip_report._id) }}" 
+                       class="btn btn-danger"
+                       onclick="return confirm('Delete this trip report? This cannot be undone.')">
+                        <i class="fas fa-trash"></i> Delete
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Photos Gallery -->
+    {% if trip_report.photos %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <h3><i class="fas fa-images"></i> Photos ({{ trip_report.photos|length }})</h3>
+            <div class="photo-gallery">
+                <div class="row">
+                    {% for photo in trip_report.photos %}
+                    <div class="col-lg-3 col-md-4 col-sm-6 mb-3">
+                        <img src="{{ photo.thumbnail_url }}" 
+                             class="img-fluid rounded shadow-sm" 
+                             alt="Trip photo"
+                             data-bs-toggle="modal" 
+                             data-bs-target="#photoModal"
+                             data-full-url="{{ photo.url }}"
+                             onclick="showFullPhoto('{{ photo.url }}')">
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Trip Description -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0"><i class="fas fa-book-open"></i> Trip Report</h4>
+                </div>
+                <div class="card-body">
+                    <div class="trip-description">
+                        {{ trip_report.description|replace('\n', '<br>')|safe }}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Trip Details Sidebar -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> Trip Details</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-borderless">
+                        <tr>
+                            <td><strong>Location:</strong></td>
+                            <td>{{ trip_report.location }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Date:</strong></td>
+                            <td>{{ trip_report.trip_date.strftime('%B %d, %Y') }}</td>
+                        </tr>
+                        {% if trip_report.difficulty %}
+                        <tr>
+                            <td><strong>Difficulty:</strong></td>
+                            <td>
+                                <span class="badge 
+                                    {% if trip_report.difficulty == 'Easy' %}bg-success
+                                    {% elif trip_report.difficulty == 'Moderate' %}bg-warning
+                                    {% elif trip_report.difficulty == 'Difficult' %}bg-danger
+                                    {% elif trip_report.difficulty == 'Expert' %}bg-dark
+                                    {% else %}bg-secondary{% endif %}">
+                                    {{ trip_report.difficulty }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <td><strong>Author:</strong></td>
+                            <td>{{ trip_report.author_name }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Posted:</strong></td>
+                            <td>{{ trip_report.created_at.strftime('%B %d, %Y') }}</td>
+                        </tr>
+                        {% if trip_report.photos %}
+                        <tr>
+                            <td><strong>Photos:</strong></td>
+                            <td>{{ trip_report.photos|length }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Quick Actions -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-bolt"></i> Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <a href="{{ url_for('create_trip_report') }}" class="btn btn-success btn-block w-100 mb-2">
+                        <i class="fas fa-plus"></i> Share Your Adventure
+                    </a>
+                    <a href="{{ url_for('trip_reports') }}" class="btn btn-outline-primary btn-block w-100">
+                        <i class="fas fa-list"></i> Browse All Reports
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Photo Modal -->
+<div class="modal fade" id="photoModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ trip_report.title }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="modalPhoto" src="" class="modal-img" alt="Full size photo">
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function showFullPhoto(url) {
+        document.getElementById('modalPhoto').src = url;
+    }
+</script>
+{% endblock %}
