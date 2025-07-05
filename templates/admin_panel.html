@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Panel - Mountaineering Club{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row">
+        <div class="col-12">
+            <h1><i class="fas fa-cogs"></i> Admin Panel</h1>
+            <p class="text-muted">Manage users, content, and club settings</p>
+        </div>
+    </div>
+    
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="card-title">{{ stats.total_users }}</h4>
+                            <p class="card-text">Total Users</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-users fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 mb-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="card-title">{{ stats.pending_approval }}</h4>
+                            <p class="card-text">Pending Approval</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-clock fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 mb-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="card-title">{{ stats.approved_users }}</h4>
+                            <p class="card-text">Approved Users</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-check fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 mb-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="card-title">{{ stats.admin_users }}</h4>
+                            <p class="card-text">Administrators</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-user-shield fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-bolt"></i> Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            <a href="{{ url_for('admin_announcements') }}" class="btn btn-primary btn-block w-100">
+                                <i class="fas fa-bullhorn"></i> Manage Announcements
+                            </a>
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <a href="{{ url_for('create_announcement') }}" class="btn btn-success btn-block w-100">
+                                <i class="fas fa-plus"></i> Create Announcement
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Pending User Approvals -->
+    {% if pending_users %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-warning text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-clock"></i> Pending User Approvals
+                        <span class="badge bg-light text-dark">{{ pending_users|length }}</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Registration Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user in pending_users %}
+                                <tr>
+                                    <td>{{ user.full_name }}</td>
+                                    <td>{{ user.email }}</td>
+                                    <td>{{ user.created_at.strftime('%B %d, %Y at %I:%M %p') }}</td>
+                                    <td>
+                                        <a href="{{ url_for('approve_user', user_id=user._id) }}" 
+                                           class="btn btn-success btn-sm"
+                                           onclick="return confirm('Approve {{ user.full_name }}?')">
+                                            <i class="fas fa-check"></i> Approve
+                                        </a>
+                                        <a href="{{ url_for('reject_user', user_id=user._id) }}" 
+                                           class="btn btn-danger btn-sm"
+                                           onclick="return confirm('Reject and delete {{ user.full_name }}? This cannot be undone.')">
+                                            <i class="fas fa-times"></i> Reject
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- All Users Management -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-users"></i> All Users</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Status</th>
+                                    <th>Role</th>
+                                    <th>Joined</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user in all_users %}
+                                <tr class="{{ 'table-warning' if not user.is_approved else '' }}">
+                                    <td>{{ user.full_name }}</td>
+                                    <td>{{ user.email }}</td>
+                                    <td>
+                                        {% if user.is_approved %}
+                                            <span class="badge bg-success">Approved</span>
+                                        {% else %}
+                                            <span class="badge bg-warning">Pending</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if user.is_admin %}
+                                            <span class="badge bg-danger">Admin</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Member</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ user.created_at.strftime('%b %d, %Y') }}</td>
+                                    <td>
+                                        {% if user.is_approved %}
+                                            <a href="{{ url_for('toggle_admin', user_id=user._id) }}" 
+                                               class="btn btn-info btn-sm"
+                                               onclick="return confirm('Change admin status for {{ user.full_name }}?')">
+                                                {% if user.is_admin %}
+                                                    <i class="fas fa-user-minus"></i> Remove Admin
+                                                {% else %}
+                                                    <i class="fas fa-user-plus"></i> Make Admin
+                                                {% endif %}
+                                            </a>
+                                        {% else %}
+                                            <a href="{{ url_for('approve_user', user_id=user._id) }}" 
+                                               class="btn btn-success btn-sm">
+                                                <i class="fas fa-check"></i> Approve
+                                            </a>
+                                            <a href="{{ url_for('reject_user', user_id=user._id) }}" 
+                                               class="btn btn-danger btn-sm"
+                                               onclick="return confirm('Reject and delete {{ user.full_name }}?')">
+                                                <i class="fas fa-times"></i> Reject
+                                            </a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

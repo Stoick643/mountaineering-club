@@ -154,6 +154,130 @@ def logout():
     flash('Logged out successfully', 'success')
     return redirect(url_for('home'))
 
+# Admin routes
+@app.route('/admin')
+@admin_required
+def admin_panel():
+    pending_users = list(mongo.db.users.find({'is_approved': False}).sort('created_at', -1))
+    all_users = list(mongo.db.users.find().sort('created_at', -1))
+    stats = {
+        'total_users': mongo.db.users.count_documents({}),
+        'pending_approval': mongo.db.users.count_documents({'is_approved': False}),
+        'approved_users': mongo.db.users.count_documents({'is_approved': True}),
+        'admin_users': mongo.db.users.count_documents({'is_admin': True})
+    }
+    return render_template('admin_panel.html', 
+                         pending_users=pending_users, 
+                         all_users=all_users, 
+                         stats=stats)
+
+@app.route('/admin/approve_user/<user_id>')
+@admin_required
+def approve_user(user_id):
+    try:
+        result = mongo.db.users.update_one(
+            {'_id': ObjectId(user_id)},
+            {'$set': {'is_approved': True}}
+        )
+        if result.modified_count:
+            user = mongo.db.users.find_one({'_id': ObjectId(user_id)})
+            flash(f'User {user["full_name"]} approved successfully', 'success')
+            logger.info(f"Admin {session['user_name']} approved user {user['email']}")
+        else:
+            flash('User not found', 'error')
+    except Exception as e:
+        flash('Error approving user', 'error')
+        logger.error(f"Error approving user {user_id}: {e}")
+    
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/reject_user/<user_id>')
+@admin_required
+def reject_user(user_id):
+    try:
+        user = mongo.db.users.find_one({'_id': ObjectId(user_id)})
+        if user:
+            mongo.db.users.delete_one({'_id': ObjectId(user_id)})
+            flash(f'User {user["full_name"]} rejected and removed', 'warning')
+            logger.info(f"Admin {session['user_name']} rejected user {user['email']}")
+        else:
+            flash('User not found', 'error')
+    except Exception as e:
+        flash('Error rejecting user', 'error')
+        logger.error(f"Error rejecting user {user_id}: {e}")
+    
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/toggle_admin/<user_id>')
+@admin_required
+def toggle_admin(user_id):
+    try:
+        user = mongo.db.users.find_one({'_id': ObjectId(user_id)})
+        if user:
+            new_admin_status = not user.get('is_admin', False)
+            mongo.db.users.update_one(
+                {'_id': ObjectId(user_id)},
+                {'$set': {'is_admin': new_admin_status}}
+            )
+            action = 'promoted to' if new_admin_status else 'removed from'
+            flash(f'{user["full_name"]} {action} admin', 'success')
+            logger.info(f"Admin {session['user_name']} changed admin status for {user['email']}")
+        else:
+            flash('User not found', 'error')
+    except Exception as e:
+        flash('Error updating admin status', 'error')
+        logger.error(f"Error toggling admin for {user_id}: {e}")
+    
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/announcements')
+@admin_required
+def admin_announcements():
+    announcements = list(mongo.db.announcements.find().sort('created_at', -1))
+    return render_template('admin_announcements.html', announcements=announcements)
+
+@app.route('/admin/announcements/create', methods=['GET', 'POST'])
+@admin_required
+def create_announcement():
+    if request.method == 'POST':
+        title = request.form.get('title')
+        content = request.form.get('content')
+        
+        if title and content:
+            announcement_data = {
+                'title': title,
+                'content': content,
+                'author_id': session['user_id'],
+                'author_name': session['user_name'],
+                'created_at': datetime.utcnow()
+            }
+            
+            mongo.db.announcements.insert_one(announcement_data)
+            flash('Announcement created successfully', 'success')
+            logger.info(f"Admin {session['user_name']} created announcement: {title}")
+            return redirect(url_for('admin_announcements'))
+        else:
+            flash('Title and content are required', 'error')
+    
+    return render_template('create_announcement.html')
+
+@app.route('/admin/announcements/delete/<announcement_id>')
+@admin_required
+def delete_announcement(announcement_id):
+    try:
+        announcement = mongo.db.announcements.find_one({'_id': ObjectId(announcement_id)})
+        if announcement:
+            mongo.db.announcements.delete_one({'_id': ObjectId(announcement_id)})
+            flash('Announcement deleted successfully', 'success')
+            logger.info(f"Admin {session['user_name']} deleted announcement: {announcement['title']}")
+        else:
+            flash('Announcement not found', 'error')
+    except Exception as e:
+        flash('Error deleting announcement', 'error')
+        logger.error(f"Error deleting announcement {announcement_id}: {e}")
+    
+    return redirect(url_for('admin_announcements'))
+
 # WebSocket events for chat
 @socketio.on('join')
 def on_join(data):

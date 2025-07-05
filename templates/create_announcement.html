@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Create Announcement - Admin Panel{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="mb-0">
+                        <i class="fas fa-bullhorn"></i> Create New Announcement
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label for="title" class="form-label">Title *</label>
+                            <input type="text" class="form-control" id="title" name="title" required
+                                   placeholder="Enter announcement title">
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label for="content" class="form-label">Content *</label>
+                            <textarea class="form-control" id="content" name="content" rows="8" required
+                                      placeholder="Enter announcement content..."></textarea>
+                            <small class="form-text text-muted">
+                                This announcement will be visible to all approved members.
+                            </small>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('admin_announcements') }}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-bullhorn"></i> Create Announcement
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> Preview</h5>
+                </div>
+                <div class="card-body">
+                    <div id="preview-title" class="h5 mb-2">Announcement Title</div>
+                    <div id="preview-content" class="text-muted">Announcement content will appear here...</div>
+                    <small class="text-muted">
+                        by {{ session.user_name }} on <span id="current-date"></span>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Set current date
+    document.getElementById('current-date').textContent = new Date().toLocaleDateString('en-US', {
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    });
+    
+    // Live preview
+    document.getElementById('title').addEventListener('input', function() {
+        const previewTitle = document.getElementById('preview-title');
+        previewTitle.textContent = this.value || 'Announcement Title';
+    });
+    
+    document.getElementById('content').addEventListener('input', function() {
+        const previewContent = document.getElementById('preview-content');
+        previewContent.textContent = this.value || 'Announcement content will appear here...';
+    });
+</script>
+{% endblock %}
