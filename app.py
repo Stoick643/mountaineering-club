@@ -471,6 +471,210 @@ def chat_history():
         'has_more': len(messages) == per_page
     })
 
+# Trip Planning routes
+@app.route('/planned-trips')
+@login_required
+def planned_trips():
+    # Get upcoming trips
+    from datetime import datetime
+    current_date = datetime.utcnow()
+    
+    upcoming_trips = list(mongo.db.planned_trips.find({
+        'trip_date': {'$gte': current_date}
+    }).sort('trip_date', 1))
+    
+    # Get past trips for reference
+    past_trips = list(mongo.db.planned_trips.find({
+        'trip_date': {'$lt': current_date}
+    }).sort('trip_date', -1).limit(10))
+    
+    return render_template('planned_trips.html', 
+                         upcoming_trips=upcoming_trips,
+                         past_trips=past_trips)
+
+@app.route('/planned-trips/create', methods=['GET', 'POST'])
+@admin_required
+def create_planned_trip():
+    if request.method == 'POST':
+        title = request.form.get('title')
+        description = request.form.get('description')
+        location = request.form.get('location')
+        trip_date = request.form.get('trip_date')
+        difficulty = request.form.get('difficulty')
+        max_participants = request.form.get('max_participants')
+        meeting_point = request.form.get('meeting_point')
+        meeting_time = request.form.get('meeting_time')
+        estimated_duration = request.form.get('estimated_duration')
+        price = request.form.get('price', 0)
+        
+        if not all([title, description, location, trip_date, meeting_point]):
+            flash('Prosimo, izpolnite vsa obvezna polja', 'error')
+            return render_template('create_planned_trip.html')
+        
+        # Parse date and time
+        try:
+            trip_datetime = datetime.strptime(f"{trip_date} {meeting_time or '09:00'}", '%Y-%m-%d %H:%M')
+        except ValueError:
+            flash('Neveljaven datum ali čas', 'error')
+            return render_template('create_planned_trip.html')
+        
+        # Create planned trip
+        trip_data = {
+            'title': title,
+            'description': description,
+            'location': location,
+            'trip_date': trip_datetime,
+            'difficulty': difficulty,
+            'max_participants': int(max_participants) if max_participants else None,
+            'meeting_point': meeting_point,
+            'estimated_duration': estimated_duration,
+            'price': float(price) if price else 0,
+            'trip_leader_id': session['user_id'],
+            'trip_leader_name': session['user_name'],
+            'participants': [],
+            'gear_list': [],
+            'carpools': [],
+            'created_at': datetime.utcnow(),
+            'status': 'open'  # open, full, cancelled, completed
+        }
+        
+        result = mongo.db.planned_trips.insert_one(trip_data)
+        flash('Izlet je bil uspešno ustvarjen!', 'success')
+        logger.info(f"Admin {session['user_name']} created planned trip: {title}")
+        
+        return redirect(url_for('view_planned_trip', trip_id=result.inserted_id))
+    
+    return render_template('create_planned_trip.html')
+
+@app.route('/planned-trips/<trip_id>')
+@login_required
+def view_planned_trip(trip_id):
+    try:
+        trip = mongo.db.planned_trips.find_one({'_id': ObjectId(trip_id)})
+        if not trip:
+            flash('Izlet ni bil najden', 'error')
+            return redirect(url_for('planned_trips'))
+        
+        # Check if current user is registered
+        user_registered = any(p.get('user_id') == session['user_id'] for p in trip.get('participants', []))
+        
+        # Check if trip is in the future
+        is_future = trip['trip_date'] > datetime.utcnow()
+        
+        # Get weather data if we have coordinates (placeholder for now)
+        weather_data = None
+        
+        return render_template('view_planned_trip.html', 
+                             trip=trip, 
+                             user_registered=user_registered,
+                             is_future=is_future,
+                             weather_data=weather_data)
+    
+    except Exception as e:
+        logger.error(f"Error viewing planned trip {trip_id}: {e}")
+        flash('Napaka pri nalaganju izleta', 'error')
+        return redirect(url_for('planned_trips'))
+
+@app.route('/planned-trips/<trip_id>/register', methods=['POST'])
+@login_required
+def register_for_trip(trip_id):
+    try:
+        trip = mongo.db.planned_trips.find_one({'_id': ObjectId(trip_id)})
+        if not trip:
+            flash('Izlet ni bil najden', 'error')
+            return redirect(url_for('planned_trips'))
+        
+        # Check if already registered
+        if any(p.get('user_id') == session['user_id'] for p in trip.get('participants', [])):
+            flash('Že ste prijavljeni na ta izlet', 'warning')
+            return redirect(url_for('view_planned_trip', trip_id=trip_id))
+        
+        # Check if trip is full
+        max_participants = trip.get('max_participants')
+        current_participants = len(trip.get('participants', []))
+        
+        if max_participants and current_participants >= max_participants:
+            flash('Izlet je poln', 'error')
+            return redirect(url_for('view_planned_trip', trip_id=trip_id))
+        
+        # Check if trip date has passed
+        if trip['trip_date'] < datetime.utcnow():
+            flash('Na pretekle izlete se ne morete več prijaviti', 'error')
+            return redirect(url_for('view_planned_trip', trip_id=trip_id))
+        
+        # Register user
+        participant_data = {
+            'user_id': session['user_id'],
+            'user_name': session['user_name'],
+            'registered_at': datetime.utcnow(),
+            'phone': request.form.get('phone', ''),
+            'emergency_contact': request.form.get('emergency_contact', ''),
+            'notes': request.form.get('notes', '')
+        }
+        
+        mongo.db.planned_trips.update_one(
+            {'_id': ObjectId(trip_id)},
+            {'$push': {'participants': participant_data}}
+        )
+        
+        flash('Uspešno ste se prijavili na izlet!', 'success')
+        logger.info(f"User {session['user_name']} registered for trip: {trip['title']}")
+        
+    except Exception as e:
+        logger.error(f"Error registering for trip {trip_id}: {e}")
+        flash('Napaka pri prijavi na izlet', 'error')
+    
+    return redirect(url_for('view_planned_trip', trip_id=trip_id))
+
+@app.route('/planned-trips/<trip_id>/unregister', methods=['POST'])
+@login_required
+def unregister_from_trip(trip_id):
+    try:
+        trip = mongo.db.planned_trips.find_one({'_id': ObjectId(trip_id)})
+        if not trip:
+            flash('Izlet ni bil najden', 'error')
+            return redirect(url_for('planned_trips'))
+        
+        # Check if trip date has passed
+        if trip['trip_date'] < datetime.utcnow():
+            flash('S preteklih izletov se ne morete več odjaviti', 'error')
+            return redirect(url_for('view_planned_trip', trip_id=trip_id))
+        
+        # Remove user from participants
+        mongo.db.planned_trips.update_one(
+            {'_id': ObjectId(trip_id)},
+            {'$pull': {'participants': {'user_id': session['user_id']}}}
+        )
+        
+        flash('Uspešno ste se odjavili z izleta', 'success')
+        logger.info(f"User {session['user_name']} unregistered from trip: {trip['title']}")
+        
+    except Exception as e:
+        logger.error(f"Error unregistering from trip {trip_id}: {e}")
+        flash('Napaka pri odjavi z izleta', 'error')
+    
+    return redirect(url_for('view_planned_trip', trip_id=trip_id))
+
+@app.route('/planned-trips/<trip_id>/gear', methods=['POST'])
+@admin_required
+def update_gear_list(trip_id):
+    try:
+        gear_items = request.form.get('gear_items', '').split('\n')
+        gear_list = [item.strip() for item in gear_items if item.strip()]
+        
+        mongo.db.planned_trips.update_one(
+            {'_id': ObjectId(trip_id)},
+            {'$set': {'gear_list': gear_list}}
+        )
+        
+        flash('Seznam opreme je bil posodobljen', 'success')
+        
+    except Exception as e:
+        logger.error(f"Error updating gear list for trip {trip_id}: {e}")
+        flash('Napaka pri posodabljanju seznama opreme', 'error')
+    
+    return redirect(url_for('view_planned_trip', trip_id=trip_id))
+
 # WebSocket events for chat
 @socketio.on('join')
 def on_join(data):

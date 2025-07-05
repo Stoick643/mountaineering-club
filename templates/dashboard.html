@@ -23,16 +23,16 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
                         <div>
-                            <h4 class="card-title">Quick Chat</h4>
-                            <p class="card-text">Join the conversation</p>
+                            <h4 class="card-title">Načrtovani izleti</h4>
+                            <p class="card-text">Prihajajoči dogodki</p>
                         </div>
                         <div class="align-self-center">
-                            <i class="fas fa-comments fa-2x"></i>
+                            <i class="fas fa-route fa-2x"></i>
                         </div>
                     </div>
-                    <button class="btn btn-outline-light btn-sm mt-2" onclick="showChatModal()">
-                        Open Chat
-                    </button>
+                    <a href="{{ url_for('planned_trips') }}" class="btn btn-outline-light btn-sm mt-2">
+                        <i class="fas fa-calendar"></i> Oglej si izlete
+                    </a>
                 </div>
             </div>
         </div>
@@ -171,13 +171,6 @@
 </div>
 
 <script>
-    function showChatModal() {
-        const chatModal = new bootstrap.Modal(document.getElementById('chatModal'));
-        chatModal.show();
-        
-        // Load recent messages when chat opens
-        loadRecentMessages();
-    }
     
     
     function showWeatherModal() {

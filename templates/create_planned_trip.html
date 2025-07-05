@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Načrtuj izlet - Planinsko Društvo{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="mb-0">
+                        <i class="fas fa-route"></i> Načrtuj nov izlet
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="row">
+                            <div class="col-md-8 mb-3">
+                                <label for="title" class="form-label">Naslov izleta *</label>
+                                <input type="text" class="form-control" id="title" name="title" required
+                                       placeholder="npr. Vzpon na Triglav">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="difficulty" class="form-label">Zahtevnost</label>
+                                <select class="form-control" id="difficulty" name="difficulty">
+                                    <option value="">Izberi zahtevnost</option>
+                                    <option value="Lahka">Lahka</option>
+                                    <option value="Srednja">Srednja</option>
+                                    <option value="Zahtevna">Zahtevna</option>
+                                    <option value="Zelo zahtevna">Zelo zahtevna</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="location" class="form-label">Lokacija *</label>
+                                <input type="text" class="form-control" id="location" name="location" required
+                                       placeholder="npr. Triglav, Slovenija">
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label for="trip_date" class="form-label">Datum izleta *</label>
+                                <input type="date" class="form-control" id="trip_date" name="trip_date" required>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label for="meeting_time" class="form-label">Ura odhoda</label>
+                                <input type="time" class="form-control" id="meeting_time" name="meeting_time" value="09:00">
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="meeting_point" class="form-label">Zbirno mesto *</label>
+                                <input type="text" class="form-control" id="meeting_point" name="meeting_point" required
+                                       placeholder="npr. Parkiranje pri Erjavčevi koči">
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label for="max_participants" class="form-label">Največ udeležencev</label>
+                                <input type="number" class="form-control" id="max_participants" name="max_participants" min="1" max="50"
+                                       placeholder="Brez omejitve">
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label for="price" class="form-label">Cena (€)</label>
+                                <input type="number" class="form-control" id="price" name="price" min="0" step="0.01" value="0"
+                                       placeholder="0.00">
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="estimated_duration" class="form-label">Predvideno trajanje</label>
+                            <input type="text" class="form-control" id="estimated_duration" name="estimated_duration"
+                                   placeholder="npr. 8 ur, celodnevni izlet">
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label for="description" class="form-label">Opis izleta *</label>
+                            <textarea class="form-control" id="description" name="description" rows="6" required
+                                      placeholder="Opišite izlet, težavnost, potrebno opremo, posebnosti..."></textarea>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('planned_trips') }}" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> Prekliči
+                            </a>
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="fas fa-route"></i> Ustvari izlet
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Set minimum date to today
+    document.getElementById('trip_date').min = new Date().toISOString().split('T')[0];
+</script>
+{% endblock %}
