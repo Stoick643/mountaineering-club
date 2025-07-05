@@ -428,6 +428,49 @@ def delete_trip_report(trip_id):
     
     return redirect(url_for('trip_reports'))
 
+# Chat routes
+@app.route('/chat')
+@login_required
+def chat():
+    # Get recent chat messages
+    recent_messages = list(mongo.db.chat_messages.find()
+                          .sort('timestamp', -1)
+                          .limit(50))
+    recent_messages.reverse()  # Oldest first for display
+    
+    # Get online users (simplified - just show recent activity)
+    online_users = list(mongo.db.users.find(
+        {'is_approved': True}, 
+        {'full_name': 1, 'email': 1}
+    ).limit(20))
+    
+    return render_template('chat.html', 
+                         recent_messages=recent_messages,
+                         online_users=online_users)
+
+@app.route('/api/chat/history')
+@login_required
+def chat_history():
+    page = request.args.get('page', 1, type=int)
+    per_page = 20
+    
+    messages = list(mongo.db.chat_messages.find()
+                   .sort('timestamp', -1)
+                   .skip((page - 1) * per_page)
+                   .limit(per_page))
+    
+    messages.reverse()  # Oldest first
+    
+    # Convert ObjectId to string for JSON serialization
+    for msg in messages:
+        msg['_id'] = str(msg['_id'])
+        msg['timestamp'] = msg['timestamp'].isoformat()
+    
+    return jsonify({
+        'messages': messages,
+        'has_more': len(messages) == per_page
+    })
+
 # WebSocket events for chat
 @socketio.on('join')
 def on_join(data):

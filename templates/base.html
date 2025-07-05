@@ -52,7 +52,7 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
             <a class="navbar-brand" href="{{ url_for('home') }}">
-                <i class="fas fa-mountain"></i> Mountaineering Club
+                <i class="fas fa-mountain"></i> Planinsko Društvo
             </a>
             
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -62,33 +62,35 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('home') }}">Home</a>
+                        <a class="nav-link" href="{{ url_for('home') }}">Domov</a>
                     </li>
                     {% if session.user_id %}
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('dashboard') }}">Dashboard</a>
+                            <a class="nav-link" href="{{ url_for('dashboard') }}">Nadzorna plošča</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('trip_reports') }}">Trip Reports</a>
+                            <a class="nav-link" href="{{ url_for('trip_reports') }}">Poročila o izletih</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="#" onclick="showChat()">Chat</a>
+                            <a class="nav-link" href="{{ url_for('chat') }}">
+                                <i class="fas fa-comments"></i> Klepet
+                            </a>
                         </li>
                         {% if session.is_admin %}
                             <li class="nav-item dropdown">
                                 <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown">
-                                    <i class="fas fa-cogs"></i> Admin
+                                    <i class="fas fa-cogs"></i> Skrbnik
                                 </a>
                                 <ul class="dropdown-menu">
                                     <li><a class="dropdown-item" href="{{ url_for('admin_panel') }}">
-                                        <i class="fas fa-users"></i> User Management
+                                        <i class="fas fa-users"></i> Upravljanje uporabnikov
                                     </a></li>
                                     <li><a class="dropdown-item" href="{{ url_for('admin_announcements') }}">
-                                        <i class="fas fa-bullhorn"></i> Announcements
+                                        <i class="fas fa-bullhorn"></i> Obvestila
                                     </a></li>
                                     <li><hr class="dropdown-divider"></li>
                                     <li><a class="dropdown-item" href="{{ url_for('create_announcement') }}">
-                                        <i class="fas fa-plus"></i> Create Announcement
+                                        <i class="fas fa-plus"></i> Novo obvestilo
                                     </a></li>
                                 </ul>
                             </li>
@@ -103,17 +105,17 @@
                                 <i class="fas fa-user"></i> {{ session.user_name }}
                             </a>
                             <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="#" onclick="showProfile()">Profile</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="showProfile()">Profil</a></li>
                                 <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="{{ url_for('logout') }}">Logout</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('logout') }}">Odjava</a></li>
                             </ul>
                         </li>
                     {% else %}
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('login') }}">Login</a>
+                            <a class="nav-link" href="{{ url_for('login') }}">Prijava</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('register') }}">Register</a>
+                            <a class="nav-link" href="{{ url_for('register') }}">Registracija</a>
                         </li>
                     {% endif %}
                 </ul>
@@ -142,17 +144,17 @@
         <div class="container">
             <div class="row">
                 <div class="col-md-6">
-                    <h5><i class="fas fa-mountain"></i> Mountaineering Club</h5>
-                    <p>Connecting mountain enthusiasts and creating unforgettable adventures.</p>
+                    <h5><i class="fas fa-mountain"></i> Planinsko Društvo</h5>
+                    <p>Povezujemo ljubitelje gora in ustvarjamo nepozabne dogodivščine.</p>
                 </div>
                 <div class="col-md-6">
-                    <h5>Quick Links</h5>
+                    <h5>Hitre povezave</h5>
                     <ul class="list-unstyled">
-                        <li><a href="{{ url_for('home') }}" class="text-light">Home</a></li>
+                        <li><a href="{{ url_for('home') }}" class="text-light">Domov</a></li>
                         {% if session.user_id %}
-                            <li><a href="{{ url_for('dashboard') }}" class="text-light">Dashboard</a></li>
+                            <li><a href="{{ url_for('dashboard') }}" class="text-light">Nadzorna plošča</a></li>
                         {% else %}
-                            <li><a href="{{ url_for('login') }}" class="text-light">Login</a></li>
+                            <li><a href="{{ url_for('login') }}" class="text-light">Prijava</a></li>
                         {% endif %}
                     </ul>
                 </div>
@@ -204,11 +206,6 @@
                 }
             }
             
-            // Chat modal functions
-            function showChat() {
-                // TODO: Implement chat modal
-                alert('Chat feature coming soon!');
-            }
             
             function showProfile() {
                 // TODO: Implement profile modal

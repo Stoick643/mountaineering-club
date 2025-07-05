@@ -1,17 +1,17 @@
 {% extends "base.html" %}
 
-{% block title %}Home - Mountaineering Club{% endblock %}
+{% block title %}Domov - Planinsko Društvo{% endblock %}
 
 {% block content %}
 <div class="hero-section text-center">
     <div class="container">
-        <h1 class="display-4 mb-4">Welcome to Our Mountaineering Club</h1>
-        <p class="lead mb-4">Join us on incredible adventures and connect with fellow mountain enthusiasts</p>
+        <h1 class="display-4 mb-4">Dobrodošli v našem Planinskem Društvu</h1>
+        <p class="lead mb-4">Pridružite se nam na neverjetnih dogodivščinah in se povežite z ostalimi ljubitelji gora</p>
         {% if not session.user_id %}
-            <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg me-3">Join Our Club</a>
-            <a href="{{ url_for('login') }}" class="btn btn-outline-light btn-lg">Login</a>
+            <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg me-3">Pridruži se društvu</a>
+            <a href="{{ url_for('login') }}" class="btn btn-outline-light btn-lg">Prijava</a>
         {% else %}
-            <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-lg">Go to Dashboard</a>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-lg">Pojdi na nadzorno ploščo</a>
         {% endif %}
     </div>
 </div>
@@ -22,8 +22,8 @@
             <div class="card h-100">
                 <div class="card-body text-center">
                     <i class="fas fa-users fa-3x text-primary mb-3"></i>
-                    <h4>Community</h4>
-                    <p class="card-text">Connect with passionate mountaineers, share experiences, and build lasting friendships.</p>
+                    <h4>Skupnost</h4>
+                    <p class="card-text">Povežite se s straščnimi planinci, delite izkušnje in gradite trajna prijateljstva.</p>
                 </div>
             </div>
         </div>
@@ -32,8 +32,8 @@
             <div class="card h-100">
                 <div class="card-body text-center">
                     <i class="fas fa-map-marked-alt fa-3x text-primary mb-3"></i>
-                    <h4>Adventure Planning</h4>
-                    <p class="card-text">Plan your next expedition with weather forecasts, route planning, and gear recommendations.</p>
+                    <h4>Načrtovanje izletov</h4>
+                    <p class="card-text">Načrtujte vašo naslednjo ekspedicijo z vremenskimi napovedmi, načrtovanjem poti in priporočili za opremo.</p>
                 </div>
             </div>
         </div>
@@ -42,8 +42,8 @@
             <div class="card h-100">
                 <div class="card-body text-center">
                     <i class="fas fa-camera fa-3x text-primary mb-3"></i>
-                    <h4>Share Stories</h4>
-                    <p class="card-text">Document your adventures with photos and stories that inspire others to explore.</p>
+                    <h4>Delite zgodbe</h4>
+                    <p class="card-text">Dokumentirajte vaše dogodivščine s fotografijami in zgodbami, ki navdihujejo druge k raziskovanju.</p>
                 </div>
             </div>
         </div>
