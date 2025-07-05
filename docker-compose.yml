@@ -4,13 +4,13 @@ services:
   app:
     build: .
     ports:
-      - "5000:5000"
+      - "5001:5000"
     depends_on:
       - mongodb
       - redis
     environment:
-      - MONGO_URI=mongodb://mongodb:27017/mountaineering_club
-      - REDIS_HOST=redis
+      - MONGO_URI=mongodb://172.19.0.3:27017/mountaineering_club
+      - REDIS_HOST=172.19.0.2
       - REDIS_PORT=6379
       - SECRET_KEY=your-secret-key-here
       - CLOUDINARY_CLOUD_NAME=your-cloud-name
@@ -36,8 +36,6 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     restart: unless-stopped

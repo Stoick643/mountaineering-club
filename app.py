@@ -28,15 +28,16 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
 
 # Initialize extensions
 mongo = PyMongo(app)
-redis_client = redis.Redis(host=os.environ.get('REDIS_HOST', 'localhost'), 
-                          port=int(os.environ.get('REDIS_PORT', 6379)), 
-                          db=0, decode_responses=True)
-limiter = Limiter(
-    app,
-    key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"],
-    storage_uri=f"redis://{os.environ.get('REDIS_HOST', 'localhost')}:{os.environ.get('REDIS_PORT', 6379)}"
-)
+# Disable Redis for now - networking issue
+# redis_client = redis.Redis(host=os.environ.get('REDIS_HOST', 'localhost'), 
+#                           port=int(os.environ.get('REDIS_PORT', 6379)), 
+#                           db=0, decode_responses=True)
+# limiter = Limiter(
+#     key_func=get_remote_address,
+#     app=app,
+#     default_limits=["200 per day", "50 per hour"],
+#     storage_uri=f"redis://{os.environ.get('REDIS_HOST', 'localhost')}:{os.environ.get('REDIS_PORT', 6379)}"
+# )
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Configure Cloudinary
@@ -75,7 +76,11 @@ def admin_required(f):
 @app.route('/')
 def home():
     # Get recent announcements for homepage
-    announcements = list(mongo.db.announcements.find().sort('created_at', -1).limit(3))
+    try:
+        announcements = list(mongo.db.announcements.find().sort('created_at', -1).limit(3))
+    except Exception as e:
+        logger.error(f"MongoDB error: {e}")
+        announcements = []
     return render_template('home.html', announcements=announcements)
 
 @app.route('/dashboard')
@@ -87,7 +92,7 @@ def dashboard():
     return render_template('dashboard.html', user=user, announcements=announcements, recent_trips=recent_trips)
 
 @app.route('/register', methods=['GET', 'POST'])
-@limiter.limit("5 per minute")
+# @limiter.limit("5 per minute")  # Disabled with Redis
 def register():
     if request.method == 'POST':
         email = request.form.get('email')
@@ -119,7 +124,7 @@ def register():
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
-@limiter.limit("10 per minute")
+# @limiter.limit("10 per minute")  # Disabled with Redis
 def login():
     if request.method == 'POST':
         email = request.form.get('email')
@@ -169,7 +174,7 @@ def on_leave(data):
     emit('status', {'msg': f'{username} has left the chat'}, room='main_chat')
 
 @socketio.on('message')
-@limiter.limit("30 per minute")
+# @limiter.limit("30 per minute")  # Temporarily disabled
 def handle_message(data):
     if 'user_id' not in session:
         return False
