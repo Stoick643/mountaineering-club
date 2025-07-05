@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Home - Mountaineering Club{% endblock %}
+
+{% block content %}
+<div class="hero-section text-center">
+    <div class="container">
+        <h1 class="display-4 mb-4">Welcome to Our Mountaineering Club</h1>
+        <p class="lead mb-4">Join us on incredible adventures and connect with fellow mountain enthusiasts</p>
+        {% if not session.user_id %}
+            <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg me-3">Join Our Club</a>
+            <a href="{{ url_for('login') }}" class="btn btn-outline-light btn-lg">Login</a>
+        {% else %}
+            <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-lg">Go to Dashboard</a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="container py-5">
+    <div class="row">
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-users fa-3x text-primary mb-3"></i>
+                    <h4>Community</h4>
+                    <p class="card-text">Connect with passionate mountaineers, share experiences, and build lasting friendships.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-map-marked-alt fa-3x text-primary mb-3"></i>
+                    <h4>Adventure Planning</h4>
+                    <p class="card-text">Plan your next expedition with weather forecasts, route planning, and gear recommendations.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-camera fa-3x text-primary mb-3"></i>
+                    <h4>Share Stories</h4>
+                    <p class="card-text">Document your adventures with photos and stories that inspire others to explore.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if announcements %}
+<div class="container py-5">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="text-center mb-4">Latest Announcements</h2>
+            <div class="row">
+                {% for announcement in announcements %}
+                <div class="col-md-4 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ announcement.title }}</h5>
+                            <p class="card-text">{{ announcement.content[:100] }}...</p>
+                            <small class="text-muted">{{ announcement.created_at.strftime('%B %d, %Y') }}</small>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="container py-5">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="text-center mb-4">Our Mission</h2>
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <p class="lead">
+                        We are a community of mountain enthusiasts dedicated to exploring the world's most beautiful peaks 
+                        while promoting safety, environmental stewardship, and camaraderie.
+                    </p>
+                    <p>
+                        Whether you're a seasoned mountaineer or just starting your alpine journey, our club provides 
+                        the resources, knowledge, and support you need to pursue your passion safely and responsibly.
+                    </p>
+                </div>
+                <div class="col-md-6">
+                    <img src="https://images.unsplash.com/photo-1551632436-cbf8dd35adfa?w=600&h=400&fit=crop" 
+                         alt="Mountain climbing" class="img-fluid rounded">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="bg-light py-5">
+    <div class="container">
+        <div class="row">
+            <div class="col-12 text-center">
+                <h2 class="mb-4">Ready to Start Your Adventure?</h2>
+                <p class="lead mb-4">Join our community of mountain enthusiasts today!</p>
+                {% if not session.user_id %}
+                    <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg">Register Now</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
