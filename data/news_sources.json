@@ -1,0 +1,131 @@
+{
+  "sources": {
+    "international": [
+      {
+        "name": "Climbing Magazine",
+        "url": "https://www.climbing.com/feed/",
+        "language": "en",
+        "priority": 8,
+        "categories": ["routes", "equipment", "techniques"]
+      },
+      {
+        "name": "Alpinist Magazine",
+        "url": "https://www.alpinist.com/feed/",
+        "language": "en", 
+        "priority": 9,
+        "categories": ["expeditions", "first_ascents", "profiles"]
+      },
+      {
+        "name": "Planet Mountain",
+        "url": "https://www.planetmountain.com/rss.xml",
+        "language": "en",
+        "priority": 7,
+        "categories": ["routes", "competitions", "news"]
+      },
+      {
+        "name": "Mountain Project",
+        "url": "https://www.mountainproject.com/rss",
+        "language": "en",
+        "priority": 6,
+        "categories": ["routes", "conditions", "community"]
+      }
+    ],
+    "regional": [
+      {
+        "name": "Plezanje.net",
+        "url": "https://www.plezanje.net/rss/",
+        "language": "sl",
+        "priority": 10,
+        "categories": ["local_routes", "competitions", "community"]
+      },
+      {
+        "name": "Gore-ljudje.net",
+        "url": "https://www.gore-ljudje.net/feed/",
+        "language": "sl",
+        "priority": 9,
+        "categories": ["hiking", "mountaineering", "gear_reviews"]
+      },
+      {
+        "name": "Planinska zveza Slovenije",
+        "url": "https://www.pzs.si/rss/",
+        "language": "sl",
+        "priority": 10,
+        "categories": ["club_news", "safety", "events"]
+      }
+    ],
+    "safety": [
+      {
+        "name": "Avalanche Slovenia",
+        "url": "https://avalanche.si/rss/",
+        "language": "sl",
+        "priority": 10,
+        "categories": ["avalanche", "winter_safety", "conditions"]
+      },
+      {
+        "name": "ARSO Weather",
+        "url": "https://meteo.arso.gov.si/rss/",
+        "language": "sl",
+        "priority": 8,
+        "categories": ["weather", "warnings", "conditions"]
+      },
+      {
+        "name": "Mountain Weather",
+        "url": "https://www.mountain-forecast.com/rss",
+        "language": "en",
+        "priority": 7,
+        "categories": ["weather", "conditions", "forecasts"]
+      }
+    ],
+    "equipment": [
+      {
+        "name": "Gear Institute",
+        "url": "https://www.gearinstitute.com/feed/",
+        "language": "en",
+        "priority": 6,
+        "categories": ["gear_reviews", "equipment", "technology"]
+      },
+      {
+        "name": "Outside Gear",
+        "url": "https://www.outsideonline.com/gear/feed/",
+        "language": "en",
+        "priority": 7,
+        "categories": ["gear_reviews", "equipment", "outdoor_gear"]
+      }
+    ]
+  },
+  "keywords": {
+    "high_priority": [
+      "slovenia", "slovenija", "julian alps", "julijske alpe", "triglav",
+      "climbing", "plezanje", "mountaineering", "alpinizem", "avalanche", "plaz",
+      "safety", "varnost", "rescue", "reševanje", "accident", "nesreča"
+    ],
+    "medium_priority": [
+      "alps", "alpe", "dolomites", "dolomiti", "route", "pot", "via ferrata",
+      "equipment", "oprema", "technique", "tehnika", "training", "trening"
+    ],
+    "low_priority": [
+      "competition", "tekmovanje", "gym", "plezalnica", "bouldering",
+      "sport climbing", "športno plezanje", "gear review", "test opreme"
+    ]
+  },
+  "filters": {
+    "exclude_keywords": [
+      "politics", "politika", "commercial", "advertising", "oglaševanje",
+      "real estate", "nepremičnine"
+    ],
+    "include_regions": [
+      "slovenia", "austria", "italy", "switzerland", "france", "germany",
+      "balkans", "europe", "himalaya", "alps"
+    ],
+    "min_relevance_score": 5.0,
+    "max_articles_per_source": 5,
+    "max_article_age_days": 7
+  },
+  "processing": {
+    "update_frequency_hours": 6,
+    "max_daily_articles": 15,
+    "ai_processing_enabled": true,
+    "auto_translation": true,
+    "content_moderation": false
+  }
+}
