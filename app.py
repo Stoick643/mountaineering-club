@@ -20,10 +20,23 @@ import requests
 import json
 
 app = Flask(__name__)
+
+# Basic Configuration
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 app.config['MONGO_URI'] = os.environ.get('MONGO_URI', 'mongodb://localhost:27017/mountaineering_club')
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
+
+# Production Security Settings
+if os.environ.get('FLASK_ENV') == 'production':
+    app.config.update(
+        SESSION_COOKIE_SECURE=True,
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE='Lax',
+        PERMANENT_SESSION_LIFETIME=int(os.environ.get('PERMANENT_SESSION_LIFETIME', 3600)),
+        WTF_CSRF_TIME_LIMIT=None,
+        SEND_FILE_MAX_AGE_DEFAULT=31536000,  # 1 year cache for static files
+    )
 
 # Initialize extensions
 mongo = PyMongo(app)
@@ -91,6 +104,27 @@ def admin_required(f):
             return redirect(url_for('dashboard'))
         return f(*args, **kwargs)
     return decorated_function
+
+# Health check route for deployment platforms
+@app.route('/health')
+def health_check():
+    """Health check endpoint for Railway, DigitalOcean, etc."""
+    try:
+        # Test database connection
+        mongo.db.users.count_documents({})
+        return jsonify({
+            'status': 'healthy',
+            'database': 'connected',
+            'timestamp': datetime.utcnow().isoformat()
+        }), 200
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return jsonify({
+            'status': 'unhealthy',
+            'database': 'disconnected',
+            'error': str(e),
+            'timestamp': datetime.utcnow().isoformat()
+        }), 503
 
 # Routes
 @app.route('/')
