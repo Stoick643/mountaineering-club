@@ -106,14 +106,45 @@
                 <div class="card-body">
                     {% if announcements %}
                         {% for announcement in announcements %}
-                            <div class="border-bottom pb-3 mb-3">
+                            <div class="border-bottom pb-3 mb-3" id="announcement-{{ announcement._id }}">
                                 <h6 class="fw-bold">{{ announcement.title }}</h6>
-                                <p class="mb-1">{{ announcement.content }}</p>
-                                <small class="text-muted">{{ announcement.created_at.strftime('%B %d, %Y at %I:%M %p') }}</small>
+                                <p class="mb-2">{{ announcement.content }}</p>
+                                <small class="text-muted">
+                                    od {{ announcement.author_name }} • {{ announcement.created_at.strftime('%d.%m.%Y ob %H:%M') }}
+                                </small>
+                                
+                                <!-- Comments Section -->
+                                <div class="mt-2">
+                                    <button class="btn btn-sm btn-outline-primary" onclick="toggleComments('announcement', '{{ announcement._id }}')">
+                                        <i class="fas fa-comment"></i> <span id="comment-count-{{ announcement._id }}">0</span> Komentarji
+                                    </button>
+                                </div>
+                                
+                                <!-- Comments Container (Initially Hidden) -->
+                                <div id="comments-container-{{ announcement._id }}" class="comments-section mt-3" style="display: none;">
+                                    <div id="comments-list-{{ announcement._id }}">
+                                        <!-- Comments will be loaded here -->
+                                    </div>
+                                    
+                                    <!-- Add Comment Form -->
+                                    <div class="mt-3">
+                                        <div class="input-group">
+                                            <input type="text" 
+                                                   id="comment-input-{{ announcement._id }}" 
+                                                   class="form-control" 
+                                                   placeholder="Dodajte komentar..."
+                                                   maxlength="1000"
+                                                   onkeypress="if(event.key==='Enter') addComment('announcement', '{{ announcement._id }}')">
+                                            <button class="btn btn-outline-primary" onclick="addComment('announcement', '{{ announcement._id }}')">
+                                                <i class="fas fa-paper-plane"></i> Pošlji
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         {% endfor %}
                     {% else %}
-                        <p class="text-muted">No announcements yet.</p>
+                        <p class="text-muted">Še ni objav.</p>
                     {% endif %}
                 </div>
             </div>
@@ -170,21 +201,202 @@
     </div>
 </div>
 
+<style>
+.comments-section {
+    background-color: #f8f9fa;
+    border-radius: 0.375rem;
+    padding: 15px;
+    margin-top: 10px;
+}
+
+.comment-item {
+    background-color: white;
+    border-radius: 0.375rem;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-left: 3px solid #007bff;
+}
+
+.comment-meta {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin-bottom: 5px;
+}
+
+.comment-content {
+    margin-bottom: 5px;
+}
+
+.comment-actions {
+    font-size: 0.8rem;
+}
+</style>
+
 <script>
+// Comments functionality
+const commentsData = {}; // Cache for comments
+
+function toggleComments(contentType, contentId) {
+    const container = document.getElementById(`comments-container-${contentId}`);
     
+    if (container.style.display === 'none') {
+        container.style.display = 'block';
+        loadComments(contentType, contentId);
+    } else {
+        container.style.display = 'none';
+    }
+}
+
+async function loadComments(contentType, contentId) {
+    try {
+        const response = await fetch(`/api/comments/${contentType}/${contentId}`);
+        const data = await response.json();
+        
+        if (response.ok) {
+            commentsData[contentId] = data.comments;
+            displayComments(contentId, data.comments);
+            updateCommentCount(contentId, data.comments.length);
+        } else {
+            console.error('Error loading comments:', data.error);
+        }
+    } catch (error) {
+        console.error('Error loading comments:', error);
+    }
+}
+
+function displayComments(contentId, comments) {
+    const commentsList = document.getElementById(`comments-list-${contentId}`);
     
-    function showWeatherModal() {
-        alert('Weather feature coming soon!');
+    if (comments.length === 0) {
+        commentsList.innerHTML = '<p class="text-muted text-center">Še ni komentarjev. Bodite prvi!</p>';
+        return;
     }
     
-    function showProfileModal() {
-        alert('Profile feature coming soon!');
+    commentsList.innerHTML = comments.map(comment => `
+        <div class="comment-item" id="comment-${comment._id}">
+            <div class="comment-meta">
+                <strong>${comment.user_name}</strong> • 
+                <span>${formatDate(comment.created_at)}</span>
+                ${comment.user_id === '{{ session.user_id }}' || {{ session.is_admin|tojson }} ? 
+                    `<span class="comment-actions ms-2">
+                        <a href="#" onclick="deleteComment('${comment._id}', '${contentId}')" class="text-danger text-decoration-none">
+                            <i class="fas fa-trash-alt"></i> Briši
+                        </a>
+                    </span>` : ''}
+            </div>
+            <div class="comment-content">${escapeHtml(comment.comment)}</div>
+        </div>
+    `).join('');
+}
+
+async function addComment(contentType, contentId) {
+    const input = document.getElementById(`comment-input-${contentId}`);
+    const comment = input.value.trim();
+    
+    if (!comment) {
+        alert('Komentar ne more biti prazen!');
+        return;
     }
     
-    function loadRecentMessages() {
-        // TODO: Load recent chat messages from server
-        const messagesDiv = document.getElementById('chat-messages');
-        messagesDiv.innerHTML = '<p class="text-muted">Loading messages...</p>';
+    try {
+        const response = await fetch(`/api/comments/${contentType}/${contentId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ comment: comment })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            // Add new comment to cache
+            if (!commentsData[contentId]) {
+                commentsData[contentId] = [];
+            }
+            commentsData[contentId].push(data.comment);
+            
+            // Refresh display
+            displayComments(contentId, commentsData[contentId]);
+            updateCommentCount(contentId, commentsData[contentId].length);
+            
+            // Clear input
+            input.value = '';
+        } else {
+            alert('Napaka: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error adding comment:', error);
+        alert('Napaka pri dodajanju komentarja');
     }
+}
+
+async function deleteComment(commentId, contentId) {
+    if (!confirm('Ali ste prepričani, da želite izbrisati ta komentar?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/comments/${commentId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            // Remove from cache
+            if (commentsData[contentId]) {
+                commentsData[contentId] = commentsData[contentId].filter(c => c._id !== commentId);
+                displayComments(contentId, commentsData[contentId]);
+                updateCommentCount(contentId, commentsData[contentId].length);
+            }
+        } else {
+            alert('Napaka: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error deleting comment:', error);
+        alert('Napaka pri brisanju komentarja');
+    }
+}
+
+function updateCommentCount(contentId, count) {
+    const countSpan = document.getElementById(`comment-count-${contentId}`);
+    if (countSpan) {
+        countSpan.textContent = count;
+    }
+}
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('sl-SI') + ' ob ' + 
+           date.toLocaleTimeString('sl-SI', {hour: '2-digit', minute: '2-digit'});
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Load comment counts on page load
+document.addEventListener('DOMContentLoaded', function() {
+    {% for announcement in announcements %}
+        loadComments('announcement', '{{ announcement._id }}');
+    {% endfor %}
+});
+
+function showWeatherModal() {
+    alert('Weather feature coming soon!');
+}
+
+function showProfileModal() {
+    alert('Profile feature coming soon!');
+}
+
+function loadRecentMessages() {
+    // TODO: Load recent chat messages from server
+    const messagesDiv = document.getElementById('chat-messages');
+    messagesDiv.innerHTML = '<p class="text-muted">Loading messages...</p>';
+}
 </script>
 {% endblock %}

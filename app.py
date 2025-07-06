@@ -8,12 +8,11 @@ from datetime import datetime
 import logging
 from functools import wraps
 import redis
-import cloudinary
-import cloudinary.uploader
-import cloudinary.api
+from image_handler import ImageHandler
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_socketio import SocketIO, emit, join_room, leave_room
+from authlib.integrations.flask_client import OAuth
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -40,11 +39,32 @@ mongo = PyMongo(app)
 # )
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Configure Cloudinary
-cloudinary.config(
-    cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME'),
-    api_key=os.environ.get('CLOUDINARY_API_KEY'),
-    api_secret=os.environ.get('CLOUDINARY_API_SECRET')
+# Initialize image handler
+image_handler = ImageHandler()
+
+# Initialize OAuth
+oauth = OAuth(app)
+
+# Configure Google OAuth
+google = oauth.register(
+    name='google',
+    client_id=os.environ.get('GOOGLE_CLIENT_ID'),
+    client_secret=os.environ.get('GOOGLE_CLIENT_SECRET'),
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={
+        'scope': 'openid email profile'
+    }
+)
+
+# Configure Facebook OAuth
+facebook = oauth.register(
+    name='facebook',
+    client_id=os.environ.get('FACEBOOK_CLIENT_ID'),
+    client_secret=os.environ.get('FACEBOOK_CLIENT_SECRET'),
+    api_base_url='https://graph.facebook.com/',
+    access_token_url='https://graph.facebook.com/oauth/access_token',
+    authorize_url='https://www.facebook.com/dialog/oauth',
+    client_kwargs={'scope': 'email'},
 )
 
 # Configure logging
@@ -151,8 +171,97 @@ def login():
 @app.route('/logout')
 def logout():
     session.clear()
-    flash('Logged out successfully', 'success')
+    flash('Uspešno ste se odjavili', 'success')
     return redirect(url_for('home'))
+
+# OAuth routes
+@app.route('/auth/<provider>')
+def oauth_login(provider):
+    if provider == 'google':
+        redirect_uri = url_for('oauth_callback', provider='google', _external=True)
+        return google.authorize_redirect(redirect_uri)
+    elif provider == 'facebook':
+        redirect_uri = url_for('oauth_callback', provider='facebook', _external=True)
+        return facebook.authorize_redirect(redirect_uri)
+    else:
+        flash('Nepodprt ponudnik prijave', 'error')
+        return redirect(url_for('login'))
+
+@app.route('/auth/<provider>/callback')
+def oauth_callback(provider):
+    try:
+        if provider == 'google':
+            token = google.authorize_access_token()
+            user_info = token.get('userinfo')
+            if user_info:
+                email = user_info['email']
+                full_name = user_info['name']
+                profile_picture = user_info.get('picture')
+        
+        elif provider == 'facebook':
+            token = facebook.authorize_access_token()
+            resp = facebook.get('me?fields=id,name,email,picture', token=token)
+            user_info = resp.json()
+            email = user_info.get('email')
+            full_name = user_info.get('name')
+            profile_picture = user_info.get('picture', {}).get('data', {}).get('url')
+            
+        else:
+            flash('Nepodprt ponudnik prijave', 'error')
+            return redirect(url_for('login'))
+        
+        if not email:
+            flash('Ni bilo mogoče pridobiti e-poštnega naslova', 'error')
+            return redirect(url_for('login'))
+        
+        # Check if user exists
+        user = mongo.db.users.find_one({'email': email})
+        
+        if user:
+            # User exists - log them in
+            if not user.get('is_approved', False):
+                flash('Vaš račun še čaka na odobritev skrbnika', 'warning')
+                return redirect(url_for('login'))
+            
+            # Update profile picture if available
+            if profile_picture and not user.get('profile_picture'):
+                mongo.db.users.update_one(
+                    {'_id': user['_id']},
+                    {'$set': {'profile_picture': profile_picture}}
+                )
+            
+            # Log user in
+            session['user_id'] = str(user['_id'])
+            session['user_name'] = user['full_name']
+            session['is_admin'] = user.get('is_admin', False)
+            
+            logger.info(f"User logged in via {provider}: {email}")
+            flash(f'Uspešno ste se prijavili preko {provider.title()}', 'success')
+            return redirect(url_for('dashboard'))
+        
+        else:
+            # Create new user account (pending approval)
+            user_data = {
+                'email': email,
+                'full_name': full_name,
+                'password': None,  # OAuth users don't have passwords
+                'oauth_provider': provider,
+                'profile_picture': profile_picture,
+                'is_approved': False,
+                'is_admin': False,
+                'created_at': datetime.utcnow()
+            }
+            
+            result = mongo.db.users.insert_one(user_data)
+            logger.info(f"New OAuth user registered via {provider}: {email}")
+            
+            flash(f'Račun ustvarjen preko {provider.title()}! Prosimo, počakajte na odobritev skrbnika.', 'success')
+            return redirect(url_for('login'))
+    
+    except Exception as e:
+        logger.error(f"OAuth {provider} error: {e}")
+        flash('Napaka pri prijavi. Poskusite znova.', 'error')
+        return redirect(url_for('login'))
 
 # Admin routes
 @app.route('/admin')
@@ -278,6 +387,104 @@ def delete_announcement(announcement_id):
     
     return redirect(url_for('admin_announcements'))
 
+# Comments routes
+@app.route('/api/comments/<content_type>/<content_id>')
+@login_required
+def get_comments(content_type, content_id):
+    """Get comments for announcements or trip reports"""
+    try:
+        if content_type not in ['announcement', 'trip_report']:
+            return jsonify({'error': 'Invalid content type'}), 400
+        
+        comments = list(mongo.db.comments.find({
+            'content_type': content_type,
+            'content_id': content_id
+        }).sort('created_at', 1))
+        
+        # Convert ObjectId to string for JSON serialization
+        for comment in comments:
+            comment['_id'] = str(comment['_id'])
+            comment['created_at'] = comment['created_at'].isoformat()
+        
+        return jsonify({'comments': comments})
+    
+    except Exception as e:
+        logger.error(f"Error fetching comments: {e}")
+        return jsonify({'error': 'Error fetching comments'}), 500
+
+@app.route('/api/comments/<content_type>/<content_id>', methods=['POST'])
+@login_required
+def add_comment(content_type, content_id):
+    """Add a comment to announcements or trip reports"""
+    try:
+        if content_type not in ['announcement', 'trip_report']:
+            return jsonify({'error': 'Invalid content type'}), 400
+        
+        data = request.get_json()
+        comment_text = data.get('comment', '').strip()
+        
+        if not comment_text:
+            return jsonify({'error': 'Comment cannot be empty'}), 400
+        
+        if len(comment_text) > 1000:
+            return jsonify({'error': 'Comment too long (max 1000 characters)'}), 400
+        
+        # Verify the content exists
+        if content_type == 'announcement':
+            content = mongo.db.announcements.find_one({'_id': ObjectId(content_id)})
+        else:  # trip_report
+            content = mongo.db.trip_reports.find_one({'_id': ObjectId(content_id)})
+        
+        if not content:
+            return jsonify({'error': 'Content not found'}), 404
+        
+        comment_data = {
+            'content_type': content_type,
+            'content_id': content_id,
+            'user_id': session['user_id'],
+            'user_name': session['user_name'],
+            'comment': comment_text,
+            'created_at': datetime.utcnow()
+        }
+        
+        result = mongo.db.comments.insert_one(comment_data)
+        
+        # Return the new comment
+        comment_data['_id'] = str(result.inserted_id)
+        comment_data['created_at'] = comment_data['created_at'].isoformat()
+        
+        logger.info(f"User {session['user_name']} added comment to {content_type} {content_id}")
+        
+        return jsonify({'comment': comment_data}), 201
+    
+    except Exception as e:
+        logger.error(f"Error adding comment: {e}")
+        return jsonify({'error': 'Error adding comment'}), 500
+
+@app.route('/api/comments/<comment_id>', methods=['DELETE'])
+@login_required
+def delete_comment(comment_id):
+    """Delete a comment (only by author or admin)"""
+    try:
+        comment = mongo.db.comments.find_one({'_id': ObjectId(comment_id)})
+        
+        if not comment:
+            return jsonify({'error': 'Comment not found'}), 404
+        
+        # Check if user can delete this comment
+        if comment['user_id'] != session['user_id'] and not session.get('is_admin', False):
+            return jsonify({'error': 'Not authorized to delete this comment'}), 403
+        
+        mongo.db.comments.delete_one({'_id': ObjectId(comment_id)})
+        
+        logger.info(f"User {session['user_name']} deleted comment {comment_id}")
+        
+        return jsonify({'success': True})
+    
+    except Exception as e:
+        logger.error(f"Error deleting comment: {e}")
+        return jsonify({'error': 'Error deleting comment'}), 500
+
 # Trip Reports routes
 @app.route('/trip-reports')
 @login_required
@@ -329,27 +536,30 @@ def create_trip_report():
         for file in files:
             if file and file.filename:
                 try:
-                    # Upload to Cloudinary
-                    result = cloudinary.uploader.upload(
-                        file,
-                        folder="mountaineering_club/trip_reports",
-                        transformation=[
-                            {'width': 1200, 'height': 800, 'crop': 'limit'},
-                            {'quality': 'auto', 'fetch_format': 'auto'}
-                        ]
-                    )
+                    # Check file size (10MB limit)
+                    file.seek(0, 2)  # Seek to end
+                    file_size = file.tell()
+                    file.seek(0)  # Reset to beginning
+                    
+                    if file_size > 10 * 1024 * 1024:  # 10MB
+                        flash(f'Datoteka {file.filename} je prevelika (max 10MB)', 'warning')
+                        continue
+                    
+                    # Process and upload image
+                    result = image_handler.process_and_upload_image(file, "trip_reports")
                     
                     uploaded_photos.append({
-                        'public_id': result['public_id'],
-                        'url': result['secure_url'],
-                        'thumbnail_url': cloudinary.CloudinaryImage(result['public_id']).build_url(
-                            width=300, height=200, crop='fill', quality='auto'
-                        )
+                        'key': result['key'],
+                        'thumb_key': result['thumb_key'],
+                        'url': result['url'],
+                        'thumbnail_url': result['thumbnail_url'],
+                        'width': result['width'],
+                        'height': result['height']
                     })
                     
                 except Exception as e:
-                    logger.error(f"Error uploading image to Cloudinary: {e}")
-                    flash('Error uploading one or more images', 'warning')
+                    logger.error(f"Error uploading image: {e}")
+                    flash('Napaka pri nalaganju slike', 'warning')
         
         # Parse date
         try:
@@ -410,12 +620,12 @@ def delete_trip_report(trip_id):
             flash('You can only delete your own trip reports', 'error')
             return redirect(url_for('trip_reports'))
         
-        # Delete photos from Cloudinary
+        # Delete photos from S3
         for photo in trip_report.get('photos', []):
             try:
-                cloudinary.uploader.destroy(photo['public_id'])
+                image_handler.delete_images(photo)
             except Exception as e:
-                logger.error(f"Error deleting image from Cloudinary: {e}")
+                logger.error(f"Error deleting image from S3: {e}")
         
         # Delete trip report from database
         mongo.db.trip_reports.delete_one({'_id': ObjectId(trip_id)})
@@ -718,4 +928,4 @@ def handle_message(data):
     }, room='main_chat')
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True, host='0.0.0.0', port=5000)
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)

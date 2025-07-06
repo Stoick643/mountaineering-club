@@ -33,8 +33,23 @@
                     
                     <hr>
                     
+                    <!-- OAuth Login Options -->
+                    <div class="text-center mb-3">
+                        <p class="text-muted mb-3">Ali se prijavite z:</p>
+                        <div class="d-grid gap-2">
+                            <a href="{{ url_for('oauth_login', provider='google') }}" class="btn btn-outline-danger">
+                                <i class="fab fa-google"></i> Prijava z Google
+                            </a>
+                            <a href="{{ url_for('oauth_login', provider='facebook') }}" class="btn btn-outline-primary">
+                                <i class="fab fa-facebook-f"></i> Prijava s Facebook
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
                     <div class="text-center">
-                        <p class="mb-0">Don't have an account? <a href="{{ url_for('register') }}">Register here</a></p>
+                        <p class="mb-0">Nimate računa? <a href="{{ url_for('register') }}">Registrirajte se tukaj</a></p>
                     </div>
                 </div>
             </div>

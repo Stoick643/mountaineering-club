@@ -92,6 +92,40 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- Comments Section -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-comments"></i> Komentarji 
+                        <span id="comment-count-{{ trip_report._id }}" class="badge bg-primary">0</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- Comments List -->
+                    <div id="comments-list-{{ trip_report._id }}">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-spinner fa-spin"></i> Nalaganje komentarjev...
+                        </div>
+                    </div>
+                    
+                    <!-- Add Comment Form -->
+                    <div class="mt-4 border-top pt-3">
+                        <h6>Dodajte komentar:</h6>
+                        <div class="mb-3">
+                            <textarea id="comment-input-{{ trip_report._id }}" 
+                                      class="form-control" 
+                                      rows="3" 
+                                      placeholder="Delite svoje misli o tem izletu..."
+                                      maxlength="1000"></textarea>
+                            <div class="form-text">Največ 1000 znakov</div>
+                        </div>
+                        <button class="btn btn-primary" onclick="addComment('trip_report', '{{ trip_report._id }}')">
+                            <i class="fas fa-paper-plane"></i> Pošlji komentar
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
         
         <!-- Trip Details Sidebar -->
@@ -176,9 +210,234 @@
     </div>
 </div>
 
+<style>
+.comment-item {
+    background-color: #f8f9fa;
+    border-radius: 0.375rem;
+    padding: 15px;
+    margin-bottom: 15px;
+    border-left: 4px solid #007bff;
+}
+
+.comment-meta {
+    font-size: 0.9rem;
+    color: #6c757d;
+    margin-bottom: 8px;
+}
+
+.comment-content {
+    margin-bottom: 8px;
+    line-height: 1.5;
+}
+
+.comment-actions {
+    font-size: 0.85rem;
+}
+</style>
+
 <script>
-    function showFullPhoto(url) {
-        document.getElementById('modalPhoto').src = url;
+// Comments functionality for trip reports
+const commentsData = {};
+
+async function loadComments(contentType, contentId) {
+    try {
+        const response = await fetch(`/api/comments/${contentType}/${contentId}`);
+        const data = await response.json();
+        
+        if (response.ok) {
+            commentsData[contentId] = data.comments;
+            displayComments(contentId, data.comments);
+            updateCommentCount(contentId, data.comments.length);
+        } else {
+            console.error('Error loading comments:', data.error);
+            displayCommentsError(contentId);
+        }
+    } catch (error) {
+        console.error('Error loading comments:', error);
+        displayCommentsError(contentId);
     }
+}
+
+function displayComments(contentId, comments) {
+    const commentsList = document.getElementById(`comments-list-${contentId}`);
+    
+    if (comments.length === 0) {
+        commentsList.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-comment-slash fa-2x mb-2"></i>
+                <p>Še ni komentarjev za ta izlet.<br>Bodite prvi in delite svoje mnenje!</p>
+            </div>
+        `;
+        return;
+    }
+    
+    commentsList.innerHTML = comments.map(comment => `
+        <div class="comment-item" id="comment-${comment._id}">
+            <div class="comment-meta">
+                <strong><i class="fas fa-user"></i> ${comment.user_name}</strong> • 
+                <span><i class="fas fa-clock"></i> ${formatDate(comment.created_at)}</span>
+                ${comment.user_id === '{{ session.user_id }}' || {{ session.is_admin|tojson }} ? 
+                    `<span class="comment-actions ms-2">
+                        <a href="#" onclick="deleteComment('${comment._id}', '${contentId}')" class="text-danger text-decoration-none">
+                            <i class="fas fa-trash-alt"></i> Briši
+                        </a>
+                    </span>` : ''}
+            </div>
+            <div class="comment-content">${escapeHtml(comment.comment).replace(/\n/g, '<br>')}</div>
+        </div>
+    `).join('');
+}
+
+function displayCommentsError(contentId) {
+    const commentsList = document.getElementById(`comments-list-${contentId}`);
+    commentsList.innerHTML = `
+        <div class="text-center text-muted py-4">
+            <i class="fas fa-exclamation-triangle fa-2x mb-2 text-warning"></i>
+            <p>Napaka pri nalaganju komentarjev.</p>
+            <button class="btn btn-sm btn-outline-primary" onclick="loadComments('trip_report', '${contentId}')">
+                <i class="fas fa-redo"></i> Poskusi znova
+            </button>
+        </div>
+    `;
+}
+
+async function addComment(contentType, contentId) {
+    const input = document.getElementById(`comment-input-${contentId}`);
+    const comment = input.value.trim();
+    
+    if (!comment) {
+        alert('Komentar ne more biti prazen!');
+        return;
+    }
+    
+    if (comment.length > 1000) {
+        alert('Komentar je predolg! Največ 1000 znakov.');
+        return;
+    }
+    
+    // Disable button during submission
+    const button = event.target;
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Pošiljanje...';
+    
+    try {
+        const response = await fetch(`/api/comments/${contentType}/${contentId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ comment: comment })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            // Add new comment to cache
+            if (!commentsData[contentId]) {
+                commentsData[contentId] = [];
+            }
+            commentsData[contentId].push(data.comment);
+            
+            // Refresh display
+            displayComments(contentId, commentsData[contentId]);
+            updateCommentCount(contentId, commentsData[contentId].length);
+            
+            // Clear input
+            input.value = '';
+            
+            // Show success message
+            showToast('Komentar je bil uspešno dodan!', 'success');
+        } else {
+            alert('Napaka: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error adding comment:', error);
+        alert('Napaka pri dodajanju komentarja');
+    } finally {
+        // Re-enable button
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
+}
+
+async function deleteComment(commentId, contentId) {
+    if (!confirm('Ali ste prepričani, da želite izbrisati ta komentar?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/comments/${commentId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            // Remove from cache
+            if (commentsData[contentId]) {
+                commentsData[contentId] = commentsData[contentId].filter(c => c._id !== commentId);
+                displayComments(contentId, commentsData[contentId]);
+                updateCommentCount(contentId, commentsData[contentId].length);
+            }
+            
+            // Show success message
+            showToast('Komentar je bil izbrisan!', 'success');
+        } else {
+            alert('Napaka: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error deleting comment:', error);
+        alert('Napaka pri brisanju komentarja');
+    }
+}
+
+function updateCommentCount(contentId, count) {
+    const countSpan = document.getElementById(`comment-count-${contentId}`);
+    if (countSpan) {
+        countSpan.textContent = count;
+    }
+}
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('sl-SI') + ' ob ' + 
+           date.toLocaleTimeString('sl-SI', {hour: '2-digit', minute: '2-digit'});
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function showToast(message, type = 'info') {
+    // Simple toast notification
+    const toastDiv = document.createElement('div');
+    toastDiv.className = `alert alert-${type === 'success' ? 'success' : 'info'} position-fixed`;
+    toastDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    toastDiv.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check-circle' : 'info-circle'}"></i> ${message}
+        <button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>
+    `;
+    
+    document.body.appendChild(toastDiv);
+    
+    // Auto remove after 3 seconds
+    setTimeout(() => {
+        if (toastDiv.parentElement) {
+            toastDiv.remove();
+        }
+    }, 3000);
+}
+
+// Load comments when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    loadComments('trip_report', '{{ trip_report._id }}');
+});
+
+function showFullPhoto(url) {
+    document.getElementById('modalPhoto').src = url;
+}
 </script>
 {% endblock %}
