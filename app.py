@@ -38,8 +38,12 @@ if os.environ.get('FLASK_ENV') == 'production':
         SEND_FILE_MAX_AGE_DEFAULT=31536000,  # 1 year cache for static files
     )
 
-# Initialize extensions
-mongo = PyMongo(app)
+# Initialize extensions - delay MongoDB connection for deployment
+try:
+    mongo = PyMongo(app)
+except Exception as e:
+    print(f"MongoDB connection failed: {e}")
+    mongo = None
 # Disable Redis for now - networking issue
 # redis_client = redis.Redis(host=os.environ.get('REDIS_HOST', 'localhost'), 
 #                           port=int(os.environ.get('REDIS_PORT', 6379)), 
@@ -518,6 +522,165 @@ def delete_comment(comment_id):
     except Exception as e:
         logger.error(f"Error deleting comment: {e}")
         return jsonify({'error': 'Error deleting comment'}), 500
+
+# AI Content Features Routes
+@app.route('/api/today-in-history')
+@login_required
+def today_in_history():
+    """Get historical event for today"""
+    try:
+        # Import AI services
+        from ai_services.content_generator import HistoricalEventGenerator
+        from ai_services.deepseek_client import DeepSeekClient
+        
+        # Initialize services
+        ai_client = DeepSeekClient()
+        event_generator = HistoricalEventGenerator(mongo.db, ai_client)
+        
+        # Get today's event
+        today_event = event_generator.get_today_event()
+        
+        if today_event:
+            # Convert ObjectId to string for JSON serialization
+            if '_id' in today_event:
+                today_event['_id'] = str(today_event['_id'])
+            if 'created_at' in today_event:
+                today_event['created_at'] = today_event['created_at'].isoformat()
+            
+            return jsonify({
+                'success': True,
+                'event': today_event
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Ni dogodka za današnji dan'
+            }), 404
+            
+    except Exception as e:
+        logger.error(f"Error fetching today's historical event: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Napaka pri pridobivanju dogodka'
+        }), 500
+
+@app.route('/api/history/<date>')
+@login_required  
+def history_by_date(date):
+    """Get historical event for specific date (MM-DD format)"""
+    try:
+        # Validate date format
+        import re
+        if not re.match(r'^\d{2}-\d{2}$', date):
+            return jsonify({
+                'success': False,
+                'error': 'Neveljaven format datuma (uporabite MM-DD)'
+            }), 400
+        
+        # Import AI services
+        from ai_services.content_generator import HistoricalEventGenerator
+        from ai_services.deepseek_client import DeepSeekClient
+        
+        # Initialize services
+        ai_client = DeepSeekClient()
+        event_generator = HistoricalEventGenerator(mongo.db, ai_client)
+        
+        # Get event for specific date
+        event = event_generator.get_today_event(date)
+        
+        if event:
+            # Convert ObjectId to string for JSON serialization
+            if '_id' in event:
+                event['_id'] = str(event['_id'])
+            if 'created_at' in event:
+                event['created_at'] = event['created_at'].isoformat()
+            
+            return jsonify({
+                'success': True,
+                'event': event
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'Ni dogodka za datum {date}'
+            }), 404
+            
+    except Exception as e:
+        logger.error(f"Error fetching historical event for {date}: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Napaka pri pridobivanju dogodka'
+        }), 500
+
+@app.route('/api/history/random')
+@login_required
+def random_history():
+    """Get random historical event"""
+    try:
+        from ai_services.content_generator import HistoricalEventGenerator
+        from ai_services.deepseek_client import DeepSeekClient
+        
+        ai_client = DeepSeekClient()
+        event_generator = HistoricalEventGenerator(mongo.db, ai_client)
+        
+        event = event_generator.get_random_event()
+        
+        if event:
+            # Convert ObjectId to string for JSON serialization
+            if '_id' in event:
+                event['_id'] = str(event['_id'])
+            if 'created_at' in event:
+                event['created_at'] = event['created_at'].isoformat()
+            
+            return jsonify({
+                'success': True,
+                'event': event
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Ni naključnega dogodka'
+            }), 404
+            
+    except Exception as e:
+        logger.error(f"Error fetching random historical event: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Napaka pri pridobivanju dogodka'
+        }), 500
+
+@app.route('/api/history/featured')
+@login_required
+def featured_history():
+    """Get featured historical events"""
+    try:
+        from ai_services.content_generator import HistoricalEventGenerator
+        from ai_services.deepseek_client import DeepSeekClient
+        
+        ai_client = DeepSeekClient()
+        event_generator = HistoricalEventGenerator(mongo.db, ai_client)
+        
+        events = event_generator.get_featured_events(limit=5)
+        
+        # Convert ObjectIds to strings for JSON serialization
+        for event in events:
+            if '_id' in event:
+                event['_id'] = str(event['_id'])
+            if 'created_at' in event:
+                event['created_at'] = event['created_at'].isoformat()
+        
+        return jsonify({
+            'success': True,
+            'events': events,
+            'count': len(events)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching featured historical events: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Napaka pri pridobivanju dogodkov'
+        }), 500
 
 # Trip Reports routes
 @app.route('/trip-reports')
