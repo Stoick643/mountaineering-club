@@ -36,7 +36,7 @@
                                 <small class="text-muted">
                                     by {{ announcement.author_name }} on {{ announcement.created_at.strftime('%B %d, %Y at %I:%M %p') }}
                                 </small>
-                                <a href="{{ url_for('delete_announcement', announcement_id=announcement._id) }}" 
+                                <a href="{{ url_for('delete_announcement', announcement_id=announcement.id) }}" 
                                    class="btn btn-danger btn-sm ms-2"
                                    onclick="return confirm('Delete this announcement? This cannot be undone.')">
                                     <i class="fas fa-trash"></i> Delete

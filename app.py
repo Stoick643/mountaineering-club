@@ -84,6 +84,10 @@ class Announcement(db.Model):
     # Relationships
     author = db.relationship('User', backref='announcements')
     comments = db.relationship('Comment', backref='announcement', lazy=True, cascade='all, delete-orphan')
+    
+    @property
+    def author_name(self):
+        return self.author.full_name if self.author else 'Unknown'
 
 class TripReport(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -99,6 +103,14 @@ class TripReport(db.Model):
     
     # Relationships
     comments = db.relationship('Comment', backref='trip_report', lazy=True, cascade='all, delete-orphan')
+    
+    @property
+    def author_name(self):
+        return self.author.full_name if self.author else 'Unknown'
+    
+    @property
+    def photos(self):
+        return self.images or []
 
 class Comment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -219,9 +231,9 @@ def health_check():
 def home():
     # Get recent announcements for homepage
     try:
-        announcements = list(mongo.db.announcements.find().sort('created_at', -1).limit(3))
+        announcements = Announcement.query.order_by(Announcement.created_at.desc()).limit(3).all()
     except Exception as e:
-        logger.error(f"MongoDB error: {e}")
+        logger.error(f"Database error: {e}")
         announcements = []
     return render_template('home.html', announcements=announcements)
 
@@ -470,7 +482,7 @@ def toggle_admin(user_id):
 @app.route('/admin/announcements')
 @admin_required
 def admin_announcements():
-    announcements = list(mongo.db.announcements.find().sort('created_at', -1))
+    announcements = Announcement.query.order_by(Announcement.created_at.desc()).all()
     return render_template('admin_announcements.html', announcements=announcements)
 
 @app.route('/admin/announcements/create', methods=['GET', 'POST'])
@@ -481,15 +493,15 @@ def create_announcement():
         content = request.form.get('content')
         
         if title and content:
-            announcement_data = {
-                'title': title,
-                'content': content,
-                'author_id': session['user_id'],
-                'author_name': session['user_name'],
-                'created_at': datetime.utcnow()
-            }
+            new_announcement = Announcement(
+                title=title,
+                content=content,
+                author_id=session['user_id'],
+                created_at=datetime.utcnow()
+            )
             
-            mongo.db.announcements.insert_one(announcement_data)
+            db.session.add(new_announcement)
+            db.session.commit()
             flash('Announcement created successfully', 'success')
             logger.info(f"Admin {session['user_name']} created announcement: {title}")
             return redirect(url_for('admin_announcements'))
@@ -498,20 +510,22 @@ def create_announcement():
     
     return render_template('create_announcement.html')
 
-@app.route('/admin/announcements/delete/<announcement_id>')
+@app.route('/admin/announcements/delete/<int:announcement_id>')
 @admin_required
 def delete_announcement(announcement_id):
     try:
-        announcement = mongo.db.announcements.find_one({'_id': ObjectId(announcement_id)})
+        announcement = Announcement.query.get(announcement_id)
         if announcement:
-            mongo.db.announcements.delete_one({'_id': ObjectId(announcement_id)})
+            db.session.delete(announcement)
+            db.session.commit()
             flash('Announcement deleted successfully', 'success')
-            logger.info(f"Admin {session['user_name']} deleted announcement: {announcement['title']}")
+            logger.info(f"Admin {session['user_name']} deleted announcement: {announcement.title}")
         else:
             flash('Announcement not found', 'error')
     except Exception as e:
         flash('Error deleting announcement', 'error')
         logger.error(f"Error deleting announcement {announcement_id}: {e}")
+        db.session.rollback()
     
     return redirect(url_for('admin_announcements'))
 
@@ -524,17 +538,24 @@ def get_comments(content_type, content_id):
         if content_type not in ['announcement', 'trip_report']:
             return jsonify({'error': 'Invalid content type'}), 400
         
-        comments = list(mongo.db.comments.find({
-            'content_type': content_type,
-            'content_id': content_id
-        }).sort('created_at', 1))
+        # Get comments based on content type
+        if content_type == 'announcement':
+            comments = Comment.query.filter_by(announcement_id=int(content_id)).order_by(Comment.created_at.asc()).all()
+        else:  # trip_report
+            comments = Comment.query.filter_by(trip_report_id=int(content_id)).order_by(Comment.created_at.asc()).all()
         
-        # Convert ObjectId to string for JSON serialization
+        # Convert to JSON format
+        comments_data = []
         for comment in comments:
-            comment['_id'] = str(comment['_id'])
-            comment['created_at'] = comment['created_at'].isoformat()
+            comments_data.append({
+                'id': comment.id,
+                'content': comment.content,
+                'author_name': comment.author.full_name if comment.author else 'Unknown',
+                'author_id': comment.author_id,
+                'created_at': comment.created_at.isoformat()
+            })
         
-        return jsonify({'comments': comments})
+        return jsonify({'comments': comments_data})
     
     except Exception as e:
         logger.error(f"Error fetching comments: {e}")
@@ -559,27 +580,33 @@ def add_comment(content_type, content_id):
         
         # Verify the content exists
         if content_type == 'announcement':
-            content = mongo.db.announcements.find_one({'_id': ObjectId(content_id)})
+            content = Announcement.query.get(int(content_id))
         else:  # trip_report
-            content = mongo.db.trip_reports.find_one({'_id': ObjectId(content_id)})
+            content = TripReport.query.get(int(content_id))
         
         if not content:
             return jsonify({'error': 'Content not found'}), 404
         
+        # Create new comment
+        new_comment = Comment(
+            content=comment_text,
+            author_id=session['user_id'],
+            announcement_id=int(content_id) if content_type == 'announcement' else None,
+            trip_report_id=int(content_id) if content_type == 'trip_report' else None,
+            created_at=datetime.utcnow()
+        )
+        
+        db.session.add(new_comment)
+        db.session.commit()
+        
+        # Return the new comment data
         comment_data = {
-            'content_type': content_type,
-            'content_id': content_id,
-            'user_id': session['user_id'],
-            'user_name': session['user_name'],
-            'comment': comment_text,
-            'created_at': datetime.utcnow()
+            'id': new_comment.id,
+            'content': new_comment.content,
+            'author_name': new_comment.author.full_name,
+            'author_id': new_comment.author_id,
+            'created_at': new_comment.created_at.isoformat()
         }
-        
-        result = mongo.db.comments.insert_one(comment_data)
-        
-        # Return the new comment
-        comment_data['_id'] = str(result.inserted_id)
-        comment_data['created_at'] = comment_data['created_at'].isoformat()
         
         logger.info(f"User {session['user_name']} added comment to {content_type} {content_id}")
         
@@ -587,23 +614,25 @@ def add_comment(content_type, content_id):
     
     except Exception as e:
         logger.error(f"Error adding comment: {e}")
+        db.session.rollback()
         return jsonify({'error': 'Error adding comment'}), 500
 
-@app.route('/api/comments/<comment_id>', methods=['DELETE'])
+@app.route('/api/comments/<int:comment_id>', methods=['DELETE'])
 @login_required
 def delete_comment(comment_id):
     """Delete a comment (only by author or admin)"""
     try:
-        comment = mongo.db.comments.find_one({'_id': ObjectId(comment_id)})
+        comment = Comment.query.get(comment_id)
         
         if not comment:
             return jsonify({'error': 'Comment not found'}), 404
         
         # Check if user can delete this comment
-        if comment['user_id'] != session['user_id'] and not session.get('is_admin', False):
+        if comment.author_id != session['user_id'] and not session.get('is_admin', False):
             return jsonify({'error': 'Not authorized to delete this comment'}), 403
         
-        mongo.db.comments.delete_one({'_id': ObjectId(comment_id)})
+        db.session.delete(comment)
+        db.session.commit()
         
         logger.info(f"User {session['user_name']} deleted comment {comment_id}")
         
@@ -611,6 +640,7 @@ def delete_comment(comment_id):
     
     except Exception as e:
         logger.error(f"Error deleting comment: {e}")
+        db.session.rollback()
         return jsonify({'error': 'Error deleting comment'}), 500
 
 # AI Content Features Routes
@@ -780,13 +810,10 @@ def trip_reports():
     per_page = 6  # 6 trip reports per page
     
     # Get total count for pagination
-    total = mongo.db.trip_reports.count_documents({})
+    total = TripReport.query.count()
     
     # Get trip reports with pagination
-    trip_reports = list(mongo.db.trip_reports.find()
-                       .sort('created_at', -1)
-                       .skip((page - 1) * per_page)
-                       .limit(per_page))
+    trip_reports = TripReport.query.order_by(TripReport.created_at.desc()).offset((page - 1) * per_page).limit(per_page).all()
     
     # Calculate pagination
     has_prev = page > 1
@@ -856,31 +883,31 @@ def create_trip_report():
             return render_template('create_trip_report.html')
         
         # Create trip report
-        trip_report_data = {
-            'title': title,
-            'description': description,
-            'location': location,
-            'trip_date': trip_date,
-            'difficulty': difficulty,
-            'photos': uploaded_photos,
-            'author_id': session['user_id'],
-            'author_name': session['user_name'],
-            'created_at': datetime.utcnow()
-        }
+        new_trip_report = TripReport(
+            title=title,
+            description=description,
+            location=location,
+            date=trip_date.date(),
+            difficulty=difficulty,
+            images=uploaded_photos,  # Store as JSON array
+            author_id=session['user_id'],
+            created_at=datetime.utcnow()
+        )
         
-        result = mongo.db.trip_reports.insert_one(trip_report_data)
+        db.session.add(new_trip_report)
+        db.session.commit()
         flash('Trip report created successfully!', 'success')
         logger.info(f"User {session['user_name']} created trip report: {title}")
         
-        return redirect(url_for('view_trip_report', trip_id=result.inserted_id))
+        return redirect(url_for('view_trip_report', trip_id=new_trip_report.id))
     
     return render_template('create_trip_report.html')
 
-@app.route('/trip-reports/<trip_id>')
+@app.route('/trip-reports/<int:trip_id>')
 @login_required
 def view_trip_report(trip_id):
     try:
-        trip_report = mongo.db.trip_reports.find_one({'_id': ObjectId(trip_id)})
+        trip_report = TripReport.query.get(trip_id)
         if not trip_report:
             flash('Trip report not found', 'error')
             return redirect(url_for('trip_reports'))
@@ -892,36 +919,38 @@ def view_trip_report(trip_id):
         flash('Error loading trip report', 'error')
         return redirect(url_for('trip_reports'))
 
-@app.route('/trip-reports/<trip_id>/delete')
+@app.route('/trip-reports/<int:trip_id>/delete')
 @login_required
 def delete_trip_report(trip_id):
     try:
-        trip_report = mongo.db.trip_reports.find_one({'_id': ObjectId(trip_id)})
+        trip_report = TripReport.query.get(trip_id)
         
         if not trip_report:
             flash('Trip report not found', 'error')
             return redirect(url_for('trip_reports'))
         
         # Check if user owns the trip report or is admin
-        if trip_report['author_id'] != session['user_id'] and not session.get('is_admin', False):
+        if trip_report.author_id != session['user_id'] and not session.get('is_admin', False):
             flash('You can only delete your own trip reports', 'error')
             return redirect(url_for('trip_reports'))
         
         # Delete photos from S3
-        for photo in trip_report.get('photos', []):
+        for photo in trip_report.images or []:
             try:
                 image_handler.delete_images(photo)
             except Exception as e:
                 logger.error(f"Error deleting image from S3: {e}")
         
         # Delete trip report from database
-        mongo.db.trip_reports.delete_one({'_id': ObjectId(trip_id)})
+        db.session.delete(trip_report)
+        db.session.commit()
         flash('Trip report deleted successfully', 'success')
-        logger.info(f"User {session['user_name']} deleted trip report: {trip_report['title']}")
+        logger.info(f"User {session['user_name']} deleted trip report: {trip_report.title}")
         
     except Exception as e:
         logger.error(f"Error deleting trip report {trip_id}: {e}")
         flash('Error deleting trip report', 'error')
+        db.session.rollback()
     
     return redirect(url_for('trip_reports'))
 

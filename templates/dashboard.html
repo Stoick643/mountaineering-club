@@ -128,7 +128,7 @@
                 <div class="card-body">
                     {% if announcements %}
                         {% for announcement in announcements %}
-                            <div class="border-bottom pb-3 mb-3" id="announcement-{{ announcement._id }}">
+                            <div class="border-bottom pb-3 mb-3" id="announcement-{{ announcement.id }}">
                                 <h6 class="fw-bold">{{ announcement.title }}</h6>
                                 <p class="mb-2">{{ announcement.content }}</p>
                                 <small class="text-muted">
@@ -137,14 +137,14 @@
                                 
                                 <!-- Comments Section -->
                                 <div class="mt-2">
-                                    <button class="btn btn-sm btn-outline-primary" onclick="toggleComments('announcement', '{{ announcement._id }}')">
-                                        <i class="fas fa-comment"></i> <span id="comment-count-{{ announcement._id }}">0</span> Komentarji
+                                    <button class="btn btn-sm btn-outline-primary" onclick="toggleComments('announcement', '{{ announcement.id }}')">
+                                        <i class="fas fa-comment"></i> <span id="comment-count-{{ announcement.id }}">0</span> Komentarji
                                     </button>
                                 </div>
                                 
                                 <!-- Comments Container (Initially Hidden) -->
-                                <div id="comments-container-{{ announcement._id }}" class="comments-section mt-3" style="display: none;">
-                                    <div id="comments-list-{{ announcement._id }}">
+                                <div id="comments-container-{{ announcement.id }}" class="comments-section mt-3" style="display: none;">
+                                    <div id="comments-list-{{ announcement.id }}">
                                         <!-- Comments will be loaded here -->
                                     </div>
                                     
@@ -152,12 +152,12 @@
                                     <div class="mt-3">
                                         <div class="input-group">
                                             <input type="text" 
-                                                   id="comment-input-{{ announcement._id }}" 
+                                                   id="comment-input-{{ announcement.id }}" 
                                                    class="form-control" 
                                                    placeholder="Dodajte komentar..."
                                                    maxlength="1000"
-                                                   onkeypress="if(event.key==='Enter') addComment('announcement', '{{ announcement._id }}')">
-                                            <button class="btn btn-outline-primary" onclick="addComment('announcement', '{{ announcement._id }}')">
+                                                   onkeypress="if(event.key==='Enter') addComment('announcement', '{{ announcement.id }}')">
+                                            <button class="btn btn-outline-primary" onclick="addComment('announcement', '{{ announcement.id }}')">
                                                 <i class="fas fa-paper-plane"></i> Pošlji
                                             </button>
                                         </div>
@@ -295,18 +295,18 @@ function displayComments(contentId, comments) {
     }
     
     commentsList.innerHTML = comments.map(comment => `
-        <div class="comment-item" id="comment-${comment._id}">
+        <div class="comment-item" id="comment-${comment.id}">
             <div class="comment-meta">
-                <strong>${comment.user_name}</strong> • 
+                <strong>${comment.author_name}</strong> • 
                 <span>${formatDate(comment.created_at)}</span>
-                ${comment.user_id === '{{ session.user_id }}' || {{ session.is_admin|tojson }} ? 
+                ${comment.author_id === {{ session.user_id }} || {{ session.is_admin|tojson }} ? 
                     `<span class="comment-actions ms-2">
-                        <a href="#" onclick="deleteComment('${comment._id}', '${contentId}')" class="text-danger text-decoration-none">
+                        <a href="#" onclick="deleteComment('${comment.id}', '${contentId}')" class="text-danger text-decoration-none">
                             <i class="fas fa-trash-alt"></i> Briši
                         </a>
                     </span>` : ''}
             </div>
-            <div class="comment-content">${escapeHtml(comment.comment)}</div>
+            <div class="comment-content">${escapeHtml(comment.content)}</div>
         </div>
     `).join('');
 }
@@ -368,7 +368,7 @@ async function deleteComment(commentId, contentId) {
         if (response.ok) {
             // Remove from cache
             if (commentsData[contentId]) {
-                commentsData[contentId] = commentsData[contentId].filter(c => c._id !== commentId);
+                commentsData[contentId] = commentsData[contentId].filter(c => c.id !== commentId);
                 displayComments(contentId, commentsData[contentId]);
                 updateCommentCount(contentId, commentsData[contentId].length);
             }
@@ -403,7 +403,7 @@ function escapeHtml(text) {
 // Load comment counts on page load
 document.addEventListener('DOMContentLoaded', function() {
     {% for announcement in announcements %}
-        loadComments('announcement', '{{ announcement._id }}');
+        loadComments('announcement', '{{ announcement.id }}');
     {% endfor %}
 });
 

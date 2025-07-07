@@ -32,7 +32,7 @@
                         {% if trip_report.difficulty %}
                         | <i class="fas fa-signal"></i> {{ trip_report.difficulty }}
                         {% endif %}
-                        | <i class="fas fa-calendar"></i> {{ trip_report.trip_date.strftime('%B %d, %Y') }}
+                        | <i class="fas fa-calendar"></i> {{ trip_report.date.strftime('%B %d, %Y') }}
                     </div>
                     <div class="text-muted">
                         <i class="fas fa-user"></i> by {{ trip_report.author_name }}
@@ -44,7 +44,7 @@
                         <i class="fas fa-arrow-left"></i> Back to Reports
                     </a>
                     {% if trip_report.author_id == session.user_id or session.is_admin %}
-                    <a href="{{ url_for('delete_trip_report', trip_id=trip_report._id) }}" 
+                    <a href="{{ url_for('delete_trip_report', trip_id=trip_report.id) }}" 
                        class="btn btn-danger"
                        onclick="return confirm('Delete this trip report? This cannot be undone.')">
                         <i class="fas fa-trash"></i> Delete
@@ -98,12 +98,12 @@
                 <div class="card-header">
                     <h5 class="mb-0">
                         <i class="fas fa-comments"></i> Komentarji 
-                        <span id="comment-count-{{ trip_report._id }}" class="badge bg-primary">0</span>
+                        <span id="comment-count-{{ trip_report.id }}" class="badge bg-primary">0</span>
                     </h5>
                 </div>
                 <div class="card-body">
                     <!-- Comments List -->
-                    <div id="comments-list-{{ trip_report._id }}">
+                    <div id="comments-list-{{ trip_report.id }}">
                         <div class="text-center text-muted">
                             <i class="fas fa-spinner fa-spin"></i> Nalaganje komentarjev...
                         </div>
@@ -113,14 +113,14 @@
                     <div class="mt-4 border-top pt-3">
                         <h6>Dodajte komentar:</h6>
                         <div class="mb-3">
-                            <textarea id="comment-input-{{ trip_report._id }}" 
+                            <textarea id="comment-input-{{ trip_report.id }}" 
                                       class="form-control" 
                                       rows="3" 
                                       placeholder="Delite svoje misli o tem izletu..."
                                       maxlength="1000"></textarea>
                             <div class="form-text">Največ 1000 znakov</div>
                         </div>
-                        <button class="btn btn-primary" onclick="addComment('trip_report', '{{ trip_report._id }}')">
+                        <button class="btn btn-primary" onclick="addComment('trip_report', '{{ trip_report.id }}')">
                             <i class="fas fa-paper-plane"></i> Pošlji komentar
                         </button>
                     </div>
@@ -142,7 +142,7 @@
                         </tr>
                         <tr>
                             <td><strong>Date:</strong></td>
-                            <td>{{ trip_report.trip_date.strftime('%B %d, %Y') }}</td>
+                            <td>{{ trip_report.date.strftime('%B %d, %Y') }}</td>
                         </tr>
                         {% if trip_report.difficulty %}
                         <tr>
@@ -272,18 +272,18 @@ function displayComments(contentId, comments) {
     }
     
     commentsList.innerHTML = comments.map(comment => `
-        <div class="comment-item" id="comment-${comment._id}">
+        <div class="comment-item" id="comment-${comment.id}">
             <div class="comment-meta">
-                <strong><i class="fas fa-user"></i> ${comment.user_name}</strong> • 
+                <strong><i class="fas fa-user"></i> ${comment.author_name}</strong> • 
                 <span><i class="fas fa-clock"></i> ${formatDate(comment.created_at)}</span>
-                ${comment.user_id === '{{ session.user_id }}' || {{ session.is_admin|tojson }} ? 
+                ${comment.author_id === {{ session.user_id }} || {{ session.is_admin|tojson }} ? 
                     `<span class="comment-actions ms-2">
-                        <a href="#" onclick="deleteComment('${comment._id}', '${contentId}')" class="text-danger text-decoration-none">
+                        <a href="#" onclick="deleteComment('${comment.id}', '${contentId}')" class="text-danger text-decoration-none">
                             <i class="fas fa-trash-alt"></i> Briši
                         </a>
                     </span>` : ''}
             </div>
-            <div class="comment-content">${escapeHtml(comment.comment).replace(/\n/g, '<br>')}</div>
+            <div class="comment-content">${escapeHtml(comment.content).replace(/\n/g, '<br>')}</div>
         </div>
     `).join('');
 }
@@ -376,7 +376,7 @@ async function deleteComment(commentId, contentId) {
         if (response.ok) {
             // Remove from cache
             if (commentsData[contentId]) {
-                commentsData[contentId] = commentsData[contentId].filter(c => c._id !== commentId);
+                commentsData[contentId] = commentsData[contentId].filter(c => c.id !== commentId);
                 displayComments(contentId, commentsData[contentId]);
                 updateCommentCount(contentId, commentsData[contentId].length);
             }
@@ -433,7 +433,7 @@ function showToast(message, type = 'info') {
 
 // Load comments when page loads
 document.addEventListener('DOMContentLoaded', function() {
-    loadComments('trip_report', '{{ trip_report._id }}');
+    loadComments('trip_report', '{{ trip_report.id }}');
 });
 
 function showFullPhoto(url) {
