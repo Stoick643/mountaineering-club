@@ -1,0 +1,234 @@
+/* AI Content Features Styling */
+
+/* Today in History Widget */
+#today-in-history-widget {
+    box-shadow: 0 4px 6px rgba(0, 123, 255, 0.1);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+#today-in-history-widget:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 15px rgba(0, 123, 255, 0.15);
+}
+
+.widget-actions .btn {
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    margin-left: 0.25rem;
+}
+
+.widget-actions .btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+/* Event Content Styling */
+.event-content {
+    line-height: 1.6;
+}
+
+.event-title {
+    color: #333;
+    font-size: 1.1rem;
+}
+
+.event-title .text-primary {
+    font-weight: 700;
+    font-size: 1.15rem;
+}
+
+#event-description {
+    color: #555;
+    font-size: 0.95rem;
+    margin-bottom: 1rem;
+}
+
+.event-metadata {
+    font-size: 0.85rem;
+    border-top: 1px solid #e9ecef;
+    padding-top: 0.75rem;
+}
+
+.event-metadata .row > div {
+    margin-bottom: 0.25rem;
+}
+
+.event-source {
+    font-size: 0.8rem;
+    opacity: 0.8;
+}
+
+/* Event Category Badges */
+.badge.bg-success { background-color: #28a745 !important; }
+.badge.bg-danger { background-color: #dc3545 !important; }
+.badge.bg-info { background-color: #17a2b8 !important; }
+.badge.bg-primary { background-color: #007bff !important; }
+.badge.bg-warning { background-color: #ffc107 !important; }
+.badge.bg-secondary { background-color: #6c757d !important; }
+.badge.bg-dark { background-color: #343a40 !important; }
+
+/* Action Buttons */
+.event-actions .btn {
+    margin-right: 0.5rem;
+    font-size: 0.8rem;
+}
+
+.event-feedback .btn {
+    font-size: 0.8rem;
+}
+
+#like-count {
+    font-weight: 600;
+}
+
+/* Loading States */
+.spinner-border {
+    width: 2rem;
+    height: 2rem;
+}
+
+#refresh-icon.fa-spin {
+    animation: fa-spin 1s infinite linear;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .widget-actions {
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    
+    .widget-actions .btn {
+        margin: 0;
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+    
+    .event-title {
+        font-size: 1rem;
+    }
+    
+    .event-actions .btn {
+        font-size: 0.75rem;
+        margin-right: 0.25rem;
+        margin-bottom: 0.25rem;
+    }
+    
+    .event-metadata .row {
+        flex-direction: column;
+    }
+}
+
+/* News Feed Widget (Future) */
+.news-feed-widget {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.news-item {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #e9ecef;
+    transition: background-color 0.2s ease;
+}
+
+.news-item:last-child {
+    border-bottom: none;
+}
+
+.news-item:hover {
+    background-color: #f8f9fa;
+}
+
+.news-title {
+    font-size: 0.9rem;
+    color: #333;
+    margin-bottom: 0.25rem;
+    font-weight: 600;
+}
+
+.news-summary {
+    font-size: 0.8rem;
+    color: #666;
+    margin-bottom: 0.5rem;
+    line-height: 1.4;
+}
+
+.news-meta {
+    font-size: 0.75rem;
+    color: #999;
+}
+
+.news-source {
+    font-weight: 500;
+    color: #007bff;
+}
+
+.relevance-score {
+    display: inline-block;
+    padding: 0.1rem 0.3rem;
+    border-radius: 0.2rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.relevance-high { background-color: #d4edda; color: #155724; }
+.relevance-medium { background-color: #fff3cd; color: #856404; }
+.relevance-low { background-color: #f8d7da; color: #721c24; }
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.pulse {
+    animation: pulse 0.6s ease-in-out;
+}
+
+/* Dark Mode Support (Future) */
+@media (prefers-color-scheme: dark) {
+    .event-content {
+        color: #e9ecef;
+    }
+    
+    .event-title {
+        color: #f8f9fa;
+    }
+    
+    #event-description {
+        color: #ced4da;
+    }
+    
+    .event-metadata {
+        border-color: #495057;
+        color: #adb5bd;
+    }
+}
+
+/* Print Styles */
+@media print {
+    #today-in-history-widget {
+        box-shadow: none;
+        border: 1px solid #333;
+    }
+    
+    .widget-actions,
+    .event-actions,
+    .event-feedback {
+        display: none;
+    }
+    
+    .card-header {
+        background-color: #333 !important;
+        color: white !important;
+    }
+}

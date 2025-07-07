@@ -5,7 +5,7 @@ Provides AI-powered content generation and curation features.
 
 from .deepseek_client import DeepSeekClient
 from .content_generator import HistoricalEventGenerator
-from .news_curator import NewsCurator
+# from .news_curator import NewsCurator  # Phase 3 - not implemented yet
 
 __version__ = "1.0.0"
-__all__ = ['DeepSeekClient', 'HistoricalEventGenerator', 'NewsCurator']
+__all__ = ['DeepSeekClient', 'HistoricalEventGenerator']

@@ -1,0 +1,137 @@
+<!-- Na Današnji Dan Widget -->
+<div class="card border-primary mb-4" id="today-in-history-widget">
+    <div class="card-header bg-primary text-white">
+        <div class="d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">
+                <i class="fas fa-calendar-day"></i> 
+                Na Današnji Dan - <span id="today-date"></span>
+            </h6>
+            <div class="widget-actions">
+                <button class="btn btn-sm btn-outline-light" onclick="refreshTodayEvent()" title="Osveži">
+                    <i class="fas fa-sync-alt" id="refresh-icon"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-light" onclick="getRandomEvent()" title="Naključni dogodek">
+                    <i class="fas fa-random"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Loading State -->
+    <div id="history-loading" class="card-body text-center">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Nalaganje...</span>
+        </div>
+        <p class="mt-2 text-muted">Nalaganje dogodka...</p>
+    </div>
+    
+    <!-- Content State -->
+    <div id="history-content" class="card-body" style="display: none;">
+        <div class="event-content">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <h6 class="event-title mb-1">
+                    <span id="event-year" class="text-primary fw-bold"></span> - 
+                    <span id="event-title"></span>
+                </h6>
+                <span id="event-category" class="badge bg-secondary"></span>
+            </div>
+            
+            <p id="event-description" class="card-text mb-3"></p>
+            
+            <div class="event-metadata">
+                <div class="row text-muted">
+                    <div class="col-md-6">
+                        <small>
+                            <i class="fas fa-map-marker-alt"></i> 
+                            <span id="event-location"></span>
+                        </small>
+                    </div>
+                    <div class="col-md-6" id="event-people-container" style="display: none;">
+                        <small>
+                            <i class="fas fa-users"></i> 
+                            <span id="event-people"></span>
+                        </small>
+                    </div>
+                </div>
+                
+                <div class="event-source mt-2" id="event-source-container" style="display: none;">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle"></i>
+                        Vir: <span id="event-source"></span>
+                    </small>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div class="mt-3 border-top pt-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="event-actions">
+                    <button class="btn btn-sm btn-outline-primary" onclick="shareEvent()" title="Deli dogodek">
+                        <i class="fas fa-share-alt"></i> Deli
+                    </button>
+                    <button class="btn btn-sm btn-outline-info" onclick="viewMoreHistory()" title="Več zgodovine">
+                        <i class="fas fa-history"></i> Več
+                    </button>
+                </div>
+                <div class="event-feedback">
+                    <button class="btn btn-sm btn-outline-success" onclick="likeEvent()" title="Všeč mi je">
+                        <i class="fas fa-thumbs-up"></i> <span id="like-count">0</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Error State -->
+    <div id="history-error" class="card-body text-center" style="display: none;">
+        <div class="text-danger mb-2">
+            <i class="fas fa-exclamation-triangle fa-2x"></i>
+        </div>
+        <p class="text-muted mb-3">Napaka pri nalaganju dogodka</p>
+        <button class="btn btn-outline-primary btn-sm" onclick="refreshTodayEvent()">
+            <i class="fas fa-retry"></i> Poskusi znova
+        </button>
+    </div>
+    
+    <!-- Empty State -->
+    <div id="history-empty" class="card-body text-center" style="display: none;">
+        <div class="text-muted mb-2">
+            <i class="fas fa-calendar-times fa-2x"></i>
+        </div>
+        <p class="text-muted mb-3">Za današnji dan ni dogodka</p>
+        <button class="btn btn-outline-primary btn-sm" onclick="getRandomEvent()">
+            <i class="fas fa-random"></i> Naključni dogodek
+        </button>
+    </div>
+</div>
+
+<!-- Event Category Mapping for Badges -->
+<script>
+const EVENT_CATEGORIES = {
+    'first_ascent': { label: 'Prvi vzpon', class: 'bg-success' },
+    'tragedy': { label: 'Tragedija', class: 'bg-danger' },
+    'discovery': { label: 'Odkritje', class: 'bg-info' },
+    'achievement': { label: 'Dosežek', class: 'bg-primary' },
+    'expedition': { label: 'Odprava', class: 'bg-warning text-dark' },
+    'rescue': { label: 'Reševanje', class: 'bg-success' },
+    'equipment': { label: 'Oprema', class: 'bg-secondary' },
+    'club_history': { label: 'Zgodovina', class: 'bg-dark' }
+};
+
+// Format today's date in Slovenian
+function formatTodayDate() {
+    const today = new Date();
+    const options = { 
+        day: 'numeric', 
+        month: 'long',
+        weekday: 'long'
+    };
+    return today.toLocaleDateString('sl-SI', options);
+}
+
+// Set today's date on widget load
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('today-date').textContent = formatTodayDate();
+});
+</script>
