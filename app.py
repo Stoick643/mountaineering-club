@@ -38,12 +38,8 @@ if os.environ.get('FLASK_ENV') == 'production':
         SEND_FILE_MAX_AGE_DEFAULT=31536000,  # 1 year cache for static files
     )
 
-# Initialize extensions - delay MongoDB connection for deployment
-try:
-    mongo = PyMongo(app)
-except Exception as e:
-    print(f"MongoDB connection failed: {e}")
-    mongo = None
+# Initialize extensions
+mongo = PyMongo(app)
 # Disable Redis for now - networking issue
 # redis_client = redis.Redis(host=os.environ.get('REDIS_HOST', 'localhost'), 
 #                           port=int(os.environ.get('REDIS_PORT', 6379)), 
