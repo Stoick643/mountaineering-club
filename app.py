@@ -63,7 +63,7 @@ class User(db.Model):
     trip_reports = db.relationship('TripReport', backref='author', lazy=True)
     comments = db.relationship('Comment', backref='author', lazy=True)
     planned_trips = db.relationship('PlannedTrip', backref='organizer', lazy=True)
-    chat_messages = db.relationship('ChatMessage', backref='author', lazy=True)
+    # chat_messages relationship removed - feature cancelled
     
     @property
     def full_name(self):
@@ -125,21 +125,54 @@ class PlannedTrip(db.Model):
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
     location = db.Column(db.String(200))
-    start_date = db.Column(db.DateTime, nullable=False)
-    end_date = db.Column(db.DateTime)
+    trip_date = db.Column(db.DateTime, nullable=False)
     difficulty = db.Column(db.String(50))
     max_participants = db.Column(db.Integer)
-    price = db.Column(db.Float)
+    meeting_point = db.Column(db.String(200))
+    estimated_duration = db.Column(db.String(100))
+    price = db.Column(db.Float, default=0)
     organizer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    rsvp_list = db.Column(db.JSON)  # Store participant IDs as JSON array
+    status = db.Column(db.String(20), default='open')  # open, full, cancelled, completed
+    gear_list = db.Column(db.JSON)  # Store gear items as JSON array
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    participants = db.relationship('TripParticipant', backref='trip', lazy=True, cascade='all, delete-orphan')
+    
+    @property
+    def organizer_name(self):
+        return self.organizer.full_name if self.organizer else 'Unknown'
+    
+    @property
+    def participant_count(self):
+        return len(self.participants)
+    
+    @property
+    def is_full(self):
+        return self.max_participants and len(self.participants) >= self.max_participants
+    
+    @property
+    def is_future(self):
+        return self.trip_date > datetime.utcnow()
 
-class ChatMessage(db.Model):
+class TripParticipant(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    message = db.Column(db.Text, nullable=False)
-    author_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    trip_id = db.Column(db.Integer, db.ForeignKey('planned_trip.id'), nullable=False)
+    phone = db.Column(db.String(20))
+    emergency_contact = db.Column(db.String(100))
+    notes = db.Column(db.Text)
+    registered_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    user = db.relationship('User', backref='trip_participations')
+    
+    @property
+    def user_name(self):
+        return self.user.full_name if self.user else 'Unknown'
+
+# ChatMessage model removed - feature cancelled
 # Disable Redis for now - networking issue
 # redis_client = redis.Redis(host=os.environ.get('REDIS_HOST', 'localhost'), 
 #                           port=int(os.environ.get('REDIS_PORT', 6379)), 
@@ -172,8 +205,8 @@ google = oauth.register(
 # Configure Facebook OAuth
 facebook = oauth.register(
     name='facebook',
-    client_id=os.environ.get('FACEBOOK_CLIENT_ID'),
-    client_secret=os.environ.get('FACEBOOK_CLIENT_SECRET'),
+    client_id=os.environ.get('FACEBOOK_APP_ID'),
+    client_secret=os.environ.get('FACEBOOK_APP_SECRET'),
     api_base_url='https://graph.facebook.com/',
     access_token_url='https://graph.facebook.com/oauth/access_token',
     authorize_url='https://www.facebook.com/dialog/oauth',
@@ -356,25 +389,23 @@ def oauth_callback(provider):
             return redirect(url_for('login'))
         
         # Check if user exists
-        user = mongo.db.users.find_one({'email': email})
+        user = User.query.filter_by(email=email).first()
         
         if user:
             # User exists - log them in
-            if not user.get('is_approved', False):
+            if not user.is_approved:
                 flash('Vaš račun še čaka na odobritev skrbnika', 'warning')
                 return redirect(url_for('login'))
             
             # Update profile picture if available
-            if profile_picture and not user.get('profile_picture'):
-                mongo.db.users.update_one(
-                    {'_id': user['_id']},
-                    {'$set': {'profile_picture': profile_picture}}
-                )
+            if profile_picture and not user.profile_picture:
+                user.profile_picture = profile_picture
+                db.session.commit()
             
             # Log user in
-            session['user_id'] = str(user['_id'])
-            session['user_name'] = user['full_name']
-            session['is_admin'] = user.get('is_admin', False)
+            session['user_id'] = user.id
+            session['user_name'] = user.full_name
+            session['is_admin'] = user.is_admin
             
             logger.info(f"User logged in via {provider}: {email}")
             flash(f'Uspešno ste se prijavili preko {provider.title()}', 'success')
@@ -382,18 +413,24 @@ def oauth_callback(provider):
         
         else:
             # Create new user account (pending approval)
-            user_data = {
-                'email': email,
-                'full_name': full_name,
-                'password': None,  # OAuth users don't have passwords
-                'oauth_provider': provider,
-                'profile_picture': profile_picture,
-                'is_approved': False,
-                'is_admin': False,
-                'created_at': datetime.utcnow()
-            }
+            # Split full name into first and last name
+            name_parts = full_name.split(' ', 1)
+            first_name = name_parts[0]
+            last_name = name_parts[1] if len(name_parts) > 1 else ''
             
-            result = mongo.db.users.insert_one(user_data)
+            new_user = User(
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
+                password_hash='',  # OAuth users don't have passwords
+                profile_picture=profile_picture,
+                is_approved=False,
+                is_admin=False,
+                created_at=datetime.utcnow()
+            )
+            
+            db.session.add(new_user)
+            db.session.commit()
             logger.info(f"New OAuth user registered via {provider}: {email}")
             
             flash(f'Račun ustvarjen preko {provider.title()}! Prosimo, počakajte na odobritev skrbnika.', 'success')
@@ -401,6 +438,7 @@ def oauth_callback(provider):
     
     except Exception as e:
         logger.error(f"OAuth {provider} error: {e}")
+        db.session.rollback()
         flash('Napaka pri prijavi. Poskusite znova.', 'error')
         return redirect(url_for('login'))
 
@@ -440,42 +478,45 @@ def approve_user(user_id):
     
     return redirect(url_for('admin_panel'))
 
-@app.route('/admin/reject_user/<user_id>')
+@app.route('/admin/reject_user/<int:user_id>')
 @admin_required
 def reject_user(user_id):
     try:
-        user = mongo.db.users.find_one({'_id': ObjectId(user_id)})
+        user = User.query.get(user_id)
         if user:
-            mongo.db.users.delete_one({'_id': ObjectId(user_id)})
-            flash(f'User {user["full_name"]} rejected and removed', 'warning')
-            logger.info(f"Admin {session['user_name']} rejected user {user['email']}")
+            user_name = user.full_name
+            user_email = user.email
+            db.session.delete(user)
+            db.session.commit()
+            flash(f'User {user_name} rejected and removed', 'warning')
+            logger.info(f"Admin {session['user_name']} rejected user {user_email}")
         else:
             flash('User not found', 'error')
     except Exception as e:
         flash('Error rejecting user', 'error')
         logger.error(f"Error rejecting user {user_id}: {e}")
+        db.session.rollback()
     
     return redirect(url_for('admin_panel'))
 
-@app.route('/admin/toggle_admin/<user_id>')
+@app.route('/admin/toggle_admin/<int:user_id>')
 @admin_required
 def toggle_admin(user_id):
     try:
-        user = mongo.db.users.find_one({'_id': ObjectId(user_id)})
+        user = User.query.get(user_id)
         if user:
-            new_admin_status = not user.get('is_admin', False)
-            mongo.db.users.update_one(
-                {'_id': ObjectId(user_id)},
-                {'$set': {'is_admin': new_admin_status}}
-            )
+            new_admin_status = not user.is_admin
+            user.is_admin = new_admin_status
+            db.session.commit()
             action = 'promoted to' if new_admin_status else 'removed from'
-            flash(f'{user["full_name"]} {action} admin', 'success')
-            logger.info(f"Admin {session['user_name']} changed admin status for {user['email']}")
+            flash(f'{user.full_name} {action} admin', 'success')
+            logger.info(f"Admin {session['user_name']} changed admin status for {user.email}")
         else:
             flash('User not found', 'error')
     except Exception as e:
         flash('Error updating admin status', 'error')
         logger.error(f"Error toggling admin for {user_id}: {e}")
+        db.session.rollback()
     
     return redirect(url_for('admin_panel'))
 
@@ -954,48 +995,7 @@ def delete_trip_report(trip_id):
     
     return redirect(url_for('trip_reports'))
 
-# Chat routes
-@app.route('/chat')
-@login_required
-def chat():
-    # Get recent chat messages
-    recent_messages = list(mongo.db.chat_messages.find()
-                          .sort('timestamp', -1)
-                          .limit(50))
-    recent_messages.reverse()  # Oldest first for display
-    
-    # Get online users (simplified - just show recent activity)
-    online_users = list(mongo.db.users.find(
-        {'is_approved': True}, 
-        {'full_name': 1, 'email': 1}
-    ).limit(20))
-    
-    return render_template('chat.html', 
-                         recent_messages=recent_messages,
-                         online_users=online_users)
-
-@app.route('/api/chat/history')
-@login_required
-def chat_history():
-    page = request.args.get('page', 1, type=int)
-    per_page = 20
-    
-    messages = list(mongo.db.chat_messages.find()
-                   .sort('timestamp', -1)
-                   .skip((page - 1) * per_page)
-                   .limit(per_page))
-    
-    messages.reverse()  # Oldest first
-    
-    # Convert ObjectId to string for JSON serialization
-    for msg in messages:
-        msg['_id'] = str(msg['_id'])
-        msg['timestamp'] = msg['timestamp'].isoformat()
-    
-    return jsonify({
-        'messages': messages,
-        'has_more': len(messages) == per_page
-    })
+# Chat routes removed - feature cancelled
 
 # Trip Planning routes
 @app.route('/planned-trips')
@@ -1005,14 +1005,14 @@ def planned_trips():
     from datetime import datetime
     current_date = datetime.utcnow()
     
-    upcoming_trips = list(mongo.db.planned_trips.find({
-        'trip_date': {'$gte': current_date}
-    }).sort('trip_date', 1))
+    upcoming_trips = PlannedTrip.query.filter(
+        PlannedTrip.trip_date >= current_date
+    ).order_by(PlannedTrip.trip_date.asc()).all()
     
     # Get past trips for reference
-    past_trips = list(mongo.db.planned_trips.find({
-        'trip_date': {'$lt': current_date}
-    }).sort('trip_date', -1).limit(10))
+    past_trips = PlannedTrip.query.filter(
+        PlannedTrip.trip_date < current_date
+    ).order_by(PlannedTrip.trip_date.desc()).limit(10).all()
     
     return render_template('planned_trips.html', 
                          upcoming_trips=upcoming_trips,
@@ -1045,203 +1045,160 @@ def create_planned_trip():
             return render_template('create_planned_trip.html')
         
         # Create planned trip
-        trip_data = {
-            'title': title,
-            'description': description,
-            'location': location,
-            'trip_date': trip_datetime,
-            'difficulty': difficulty,
-            'max_participants': int(max_participants) if max_participants else None,
-            'meeting_point': meeting_point,
-            'estimated_duration': estimated_duration,
-            'price': float(price) if price else 0,
-            'trip_leader_id': session['user_id'],
-            'trip_leader_name': session['user_name'],
-            'participants': [],
-            'gear_list': [],
-            'carpools': [],
-            'created_at': datetime.utcnow(),
-            'status': 'open'  # open, full, cancelled, completed
-        }
+        new_trip = PlannedTrip(
+            title=title,
+            description=description,
+            location=location,
+            trip_date=trip_datetime,
+            difficulty=difficulty,
+            max_participants=int(max_participants) if max_participants else None,
+            meeting_point=meeting_point,
+            estimated_duration=estimated_duration,
+            price=float(price) if price else 0,
+            organizer_id=session['user_id'],
+            status='open',  # open, full, cancelled, completed
+            created_at=datetime.utcnow()
+        )
         
-        result = mongo.db.planned_trips.insert_one(trip_data)
+        db.session.add(new_trip)
+        db.session.commit()
         flash('Izlet je bil uspešno ustvarjen!', 'success')
         logger.info(f"Admin {session['user_name']} created planned trip: {title}")
         
-        return redirect(url_for('view_planned_trip', trip_id=result.inserted_id))
+        return redirect(url_for('view_planned_trip', trip_id=new_trip.id))
     
     return render_template('create_planned_trip.html')
 
-@app.route('/planned-trips/<trip_id>')
+@app.route('/planned-trips/<int:trip_id>')
 @login_required
 def view_planned_trip(trip_id):
     try:
-        trip = mongo.db.planned_trips.find_one({'_id': ObjectId(trip_id)})
+        trip = PlannedTrip.query.get(trip_id)
         if not trip:
             flash('Izlet ni bil najden', 'error')
             return redirect(url_for('planned_trips'))
         
         # Check if current user is registered
-        user_registered = any(p.get('user_id') == session['user_id'] for p in trip.get('participants', []))
+        user_registered = any(p.user_id == session['user_id'] for p in trip.participants)
         
         # Check if trip is in the future
-        is_future = trip['trip_date'] > datetime.utcnow()
-        
-        # Get weather data if we have coordinates (placeholder for now)
-        weather_data = None
+        is_future = trip.trip_date > datetime.utcnow()
         
         return render_template('view_planned_trip.html', 
                              trip=trip, 
                              user_registered=user_registered,
-                             is_future=is_future,
-                             weather_data=weather_data)
+                             is_future=is_future)
     
     except Exception as e:
         logger.error(f"Error viewing planned trip {trip_id}: {e}")
         flash('Napaka pri nalaganju izleta', 'error')
         return redirect(url_for('planned_trips'))
 
-@app.route('/planned-trips/<trip_id>/register', methods=['POST'])
+@app.route('/planned-trips/<int:trip_id>/register', methods=['POST'])
 @login_required
 def register_for_trip(trip_id):
     try:
-        trip = mongo.db.planned_trips.find_one({'_id': ObjectId(trip_id)})
+        trip = PlannedTrip.query.get(trip_id)
         if not trip:
             flash('Izlet ni bil najden', 'error')
             return redirect(url_for('planned_trips'))
         
         # Check if already registered
-        if any(p.get('user_id') == session['user_id'] for p in trip.get('participants', [])):
+        if any(p.user_id == session['user_id'] for p in trip.participants):
             flash('Že ste prijavljeni na ta izlet', 'warning')
             return redirect(url_for('view_planned_trip', trip_id=trip_id))
         
         # Check if trip is full
-        max_participants = trip.get('max_participants')
-        current_participants = len(trip.get('participants', []))
-        
-        if max_participants and current_participants >= max_participants:
+        if trip.max_participants and len(trip.participants) >= trip.max_participants:
             flash('Izlet je poln', 'error')
             return redirect(url_for('view_planned_trip', trip_id=trip_id))
         
         # Check if trip date has passed
-        if trip['trip_date'] < datetime.utcnow():
+        if trip.trip_date < datetime.utcnow():
             flash('Na pretekle izlete se ne morete več prijaviti', 'error')
             return redirect(url_for('view_planned_trip', trip_id=trip_id))
         
         # Register user
-        participant_data = {
-            'user_id': session['user_id'],
-            'user_name': session['user_name'],
-            'registered_at': datetime.utcnow(),
-            'phone': request.form.get('phone', ''),
-            'emergency_contact': request.form.get('emergency_contact', ''),
-            'notes': request.form.get('notes', '')
-        }
-        
-        mongo.db.planned_trips.update_one(
-            {'_id': ObjectId(trip_id)},
-            {'$push': {'participants': participant_data}}
+        participant = TripParticipant(
+            user_id=session['user_id'],
+            trip_id=trip_id,
+            phone=request.form.get('phone', ''),
+            emergency_contact=request.form.get('emergency_contact', ''),
+            notes=request.form.get('notes', ''),
+            registered_at=datetime.utcnow()
         )
         
+        db.session.add(participant)
+        db.session.commit()
+        
         flash('Uspešno ste se prijavili na izlet!', 'success')
-        logger.info(f"User {session['user_name']} registered for trip: {trip['title']}")
+        logger.info(f"User {session['user_name']} registered for trip: {trip.title}")
         
     except Exception as e:
         logger.error(f"Error registering for trip {trip_id}: {e}")
         flash('Napaka pri prijavi na izlet', 'error')
+        db.session.rollback()
     
     return redirect(url_for('view_planned_trip', trip_id=trip_id))
 
-@app.route('/planned-trips/<trip_id>/unregister', methods=['POST'])
+@app.route('/planned-trips/<int:trip_id>/unregister', methods=['POST'])
 @login_required
 def unregister_from_trip(trip_id):
     try:
-        trip = mongo.db.planned_trips.find_one({'_id': ObjectId(trip_id)})
+        trip = PlannedTrip.query.get(trip_id)
         if not trip:
             flash('Izlet ni bil najden', 'error')
             return redirect(url_for('planned_trips'))
         
         # Check if trip date has passed
-        if trip['trip_date'] < datetime.utcnow():
+        if trip.trip_date < datetime.utcnow():
             flash('S preteklih izletov se ne morete več odjaviti', 'error')
             return redirect(url_for('view_planned_trip', trip_id=trip_id))
         
         # Remove user from participants
-        mongo.db.planned_trips.update_one(
-            {'_id': ObjectId(trip_id)},
-            {'$pull': {'participants': {'user_id': session['user_id']}}}
-        )
+        participant = TripParticipant.query.filter_by(
+            trip_id=trip_id,
+            user_id=session['user_id']
+        ).first()
         
-        flash('Uspešno ste se odjavili z izleta', 'success')
-        logger.info(f"User {session['user_name']} unregistered from trip: {trip['title']}")
+        if participant:
+            db.session.delete(participant)
+            db.session.commit()
+            flash('Uspešno ste se odjavili z izleta', 'success')
+            logger.info(f"User {session['user_name']} unregistered from trip: {trip.title}")
+        else:
+            flash('Niste prijavljeni na ta izlet', 'warning')
         
     except Exception as e:
         logger.error(f"Error unregistering from trip {trip_id}: {e}")
         flash('Napaka pri odjavi z izleta', 'error')
+        db.session.rollback()
     
     return redirect(url_for('view_planned_trip', trip_id=trip_id))
 
-@app.route('/planned-trips/<trip_id>/gear', methods=['POST'])
+@app.route('/planned-trips/<int:trip_id>/gear', methods=['POST'])
 @admin_required
 def update_gear_list(trip_id):
     try:
         gear_items = request.form.get('gear_items', '').split('\n')
         gear_list = [item.strip() for item in gear_items if item.strip()]
         
-        mongo.db.planned_trips.update_one(
-            {'_id': ObjectId(trip_id)},
-            {'$set': {'gear_list': gear_list}}
-        )
-        
-        flash('Seznam opreme je bil posodobljen', 'success')
+        trip = PlannedTrip.query.get(trip_id)
+        if trip:
+            trip.gear_list = gear_list
+            db.session.commit()
+            flash('Seznam opreme je bil posodobljen', 'success')
+        else:
+            flash('Izlet ni bil najden', 'error')
         
     except Exception as e:
         logger.error(f"Error updating gear list for trip {trip_id}: {e}")
         flash('Napaka pri posodabljanju seznama opreme', 'error')
+        db.session.rollback()
     
     return redirect(url_for('view_planned_trip', trip_id=trip_id))
 
-# WebSocket events for chat
-@socketio.on('join')
-def on_join(data):
-    if 'user_id' not in session:
-        return False
-    
-    username = session.get('user_name', 'Anonymous')
-    join_room('main_chat')
-    emit('status', {'msg': f'{username} has joined the chat'}, room='main_chat')
-
-@socketio.on('leave')
-def on_leave(data):
-    if 'user_id' not in session:
-        return False
-    
-    username = session.get('user_name', 'Anonymous')
-    leave_room('main_chat')
-    emit('status', {'msg': f'{username} has left the chat'}, room='main_chat')
-
-@socketio.on('message')
-# @limiter.limit("30 per minute")  # Temporarily disabled
-def handle_message(data):
-    if 'user_id' not in session:
-        return False
-    
-    message_data = {
-        'user_id': session['user_id'],
-        'username': session.get('user_name', 'Anonymous'),
-        'message': data['message'],
-        'timestamp': datetime.utcnow()
-    }
-    
-    # Save to database
-    mongo.db.chat_messages.insert_one(message_data)
-    
-    # Emit to all users in chat room
-    emit('message', {
-        'username': message_data['username'],
-        'message': message_data['message'],
-        'timestamp': message_data['timestamp'].isoformat()
-    }, room='main_chat')
+# WebSocket events for chat removed - feature cancelled
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
