@@ -1,8 +1,8 @@
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash
-from flask_pymongo import PyMongo
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from bson import ObjectId
 import os
 from datetime import datetime
 import logging
@@ -23,7 +23,8 @@ app = Flask(__name__)
 
 # Basic Configuration
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
-app.config['MONGO_URI'] = os.environ.get('MONGO_URI', 'mongodb://localhost:27017/mountaineering_club')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///mountaineering_club.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
 
@@ -39,7 +40,94 @@ if os.environ.get('FLASK_ENV') == 'production':
     )
 
 # Initialize extensions
-mongo = PyMongo(app)
+db = SQLAlchemy(app)
+migrate = Migrate(app, db)
+
+# Database Models
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    first_name = db.Column(db.String(100), nullable=False)
+    last_name = db.Column(db.String(100), nullable=False)
+    is_admin = db.Column(db.Boolean, default=False)
+    is_approved = db.Column(db.Boolean, default=False)
+    is_email_verified = db.Column(db.Boolean, default=False)
+    verification_token = db.Column(db.String(255))
+    last_login = db.Column(db.DateTime)
+    last_seen = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    profile_picture = db.Column(db.String(255))
+    
+    # Relationships
+    trip_reports = db.relationship('TripReport', backref='author', lazy=True)
+    comments = db.relationship('Comment', backref='author', lazy=True)
+    planned_trips = db.relationship('PlannedTrip', backref='organizer', lazy=True)
+    chat_messages = db.relationship('ChatMessage', backref='author', lazy=True)
+    
+    @property
+    def full_name(self):
+        return f"{self.first_name} {self.last_name}".strip()
+    
+    @property 
+    def password(self):
+        return self.password_hash
+
+class Announcement(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    author_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    author = db.relationship('User', backref='announcements')
+    comments = db.relationship('Comment', backref='announcement', lazy=True, cascade='all, delete-orphan')
+
+class TripReport(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    location = db.Column(db.String(200))
+    date = db.Column(db.Date)
+    difficulty = db.Column(db.String(50))
+    images = db.Column(db.JSON)  # Store image URLs as JSON array
+    author_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    comments = db.relationship('Comment', backref='trip_report', lazy=True, cascade='all, delete-orphan')
+
+class Comment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    content = db.Column(db.Text, nullable=False)
+    author_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    announcement_id = db.Column(db.Integer, db.ForeignKey('announcement.id'), nullable=True)
+    trip_report_id = db.Column(db.Integer, db.ForeignKey('trip_report.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class PlannedTrip(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    location = db.Column(db.String(200))
+    start_date = db.Column(db.DateTime, nullable=False)
+    end_date = db.Column(db.DateTime)
+    difficulty = db.Column(db.String(50))
+    max_participants = db.Column(db.Integer)
+    price = db.Column(db.Float)
+    organizer_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    rsvp_list = db.Column(db.JSON)  # Store participant IDs as JSON array
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class ChatMessage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    message = db.Column(db.Text, nullable=False)
+    author_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 # Disable Redis for now - networking issue
 # redis_client = redis.Redis(host=os.environ.get('REDIS_HOST', 'localhost'), 
 #                           port=int(os.environ.get('REDIS_PORT', 6379)), 
@@ -98,8 +186,8 @@ def admin_required(f):
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
             return redirect(url_for('login'))
-        user = mongo.db.users.find_one({'_id': ObjectId(session['user_id'])})
-        if not user or not user.get('is_admin', False):
+        user = User.query.get(session['user_id'])
+        if not user or not user.is_admin:
             flash('Admin access required', 'error')
             return redirect(url_for('dashboard'))
         return f(*args, **kwargs)
@@ -111,7 +199,7 @@ def health_check():
     """Health check endpoint for Railway, DigitalOcean, etc."""
     try:
         # Test database connection
-        mongo.db.users.count_documents({})
+        User.query.count()
         return jsonify({
             'status': 'healthy',
             'database': 'connected',
@@ -140,9 +228,9 @@ def home():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    user = mongo.db.users.find_one({'_id': ObjectId(session['user_id'])})
-    announcements = list(mongo.db.announcements.find().sort('created_at', -1).limit(5))
-    recent_trips = list(mongo.db.trip_reports.find().sort('created_at', -1).limit(5))
+    user = User.query.get(session['user_id'])
+    announcements = Announcement.query.order_by(Announcement.created_at.desc()).limit(5).all()
+    recent_trips = TripReport.query.order_by(TripReport.created_at.desc()).limit(5).all()
     return render_template('dashboard.html', user=user, announcements=announcements, recent_trips=recent_trips)
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -154,22 +242,29 @@ def register():
         full_name = request.form.get('full_name')
         
         # Check if user exists
-        if mongo.db.users.find_one({'email': email}):
+        if User.query.filter_by(email=email).first():
             flash('Email already registered', 'error')
             return render_template('register.html')
         
-        # Create new user (pending approval)
-        user_data = {
-            'email': email,
-            'password': generate_password_hash(password),
-            'full_name': full_name,
-            'is_approved': False,
-            'is_admin': False,
-            'created_at': datetime.utcnow(),
-            'profile_picture': None
-        }
+        # Split full name into first and last name
+        name_parts = full_name.split(' ', 1)
+        first_name = name_parts[0]
+        last_name = name_parts[1] if len(name_parts) > 1 else ''
         
-        result = mongo.db.users.insert_one(user_data)
+        # Create new user (pending approval)
+        new_user = User(
+            email=email,
+            password_hash=generate_password_hash(password),
+            first_name=first_name,
+            last_name=last_name,
+            is_approved=False,
+            is_admin=False,
+            created_at=datetime.utcnow(),
+            profile_picture=None
+        )
+        
+        db.session.add(new_user)
+        db.session.commit()
         logger.info(f"New user registered: {email}")
         
         flash('Registration successful! Please wait for admin approval.', 'success')
@@ -184,16 +279,16 @@ def login():
         email = request.form.get('email')
         password = request.form.get('password')
         
-        user = mongo.db.users.find_one({'email': email})
+        user = User.query.filter_by(email=email).first()
         
-        if user and check_password_hash(user['password'], password):
-            if not user.get('is_approved', False):
+        if user and check_password_hash(user.password_hash, password):
+            if not user.is_approved:
                 flash('Account pending approval', 'warning')
                 return render_template('login.html')
             
-            session['user_id'] = str(user['_id'])
-            session['user_name'] = user['full_name']
-            session['is_admin'] = user.get('is_admin', False)
+            session['user_id'] = user.id
+            session['user_name'] = user.full_name
+            session['is_admin'] = user.is_admin
             
             logger.info(f"User logged in: {email}")
             return redirect(url_for('dashboard'))
@@ -301,13 +396,13 @@ def oauth_callback(provider):
 @app.route('/admin')
 @admin_required
 def admin_panel():
-    pending_users = list(mongo.db.users.find({'is_approved': False}).sort('created_at', -1))
-    all_users = list(mongo.db.users.find().sort('created_at', -1))
+    pending_users = User.query.filter_by(is_approved=False).order_by(User.created_at.desc()).all()
+    all_users = User.query.order_by(User.created_at.desc()).all()
     stats = {
-        'total_users': mongo.db.users.count_documents({}),
-        'pending_approval': mongo.db.users.count_documents({'is_approved': False}),
-        'approved_users': mongo.db.users.count_documents({'is_approved': True}),
-        'admin_users': mongo.db.users.count_documents({'is_admin': True})
+        'total_users': User.query.count(),
+        'pending_approval': User.query.filter_by(is_approved=False).count(),
+        'approved_users': User.query.filter_by(is_approved=True).count(),
+        'admin_users': User.query.filter_by(is_admin=True).count()
     }
     return render_template('admin_panel.html', 
                          pending_users=pending_users, 
@@ -318,19 +413,18 @@ def admin_panel():
 @admin_required
 def approve_user(user_id):
     try:
-        result = mongo.db.users.update_one(
-            {'_id': ObjectId(user_id)},
-            {'$set': {'is_approved': True}}
-        )
-        if result.modified_count:
-            user = mongo.db.users.find_one({'_id': ObjectId(user_id)})
-            flash(f'User {user["full_name"]} approved successfully', 'success')
-            logger.info(f"Admin {session['user_name']} approved user {user['email']}")
+        user = User.query.get(int(user_id))
+        if user:
+            user.is_approved = True
+            db.session.commit()
+            flash(f'User {user.full_name} approved successfully', 'success')
+            logger.info(f"Admin {session['user_name']} approved user {user.email}")
         else:
             flash('User not found', 'error')
     except Exception as e:
         flash('Error approving user', 'error')
         logger.error(f"Error approving user {user_id}: {e}")
+        db.session.rollback()
     
     return redirect(url_for('admin_panel'))
 

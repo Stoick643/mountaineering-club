@@ -4,9 +4,8 @@ Werkzeug==2.3.7
 Jinja2==3.1.2
 
 # Database
-Flask-PyMongo==2.3.0
-pymongo==4.8.0
-dnspython==2.6.1
+Flask-SQLAlchemy==3.0.5
+Flask-Migrate==4.0.5
 
 # Authentication & Security
 authlib==1.6.0
