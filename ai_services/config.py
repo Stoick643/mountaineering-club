@@ -19,8 +19,8 @@ FEATURE_FLAGS = {
 # Content Settings
 DEFAULT_LANGUAGE = os.environ.get('DEFAULT_LANGUAGE', 'sl')
 CONTENT_CACHE_DURATION = int(os.environ.get('CONTENT_CACHE_DURATION', 24))  # hours
-NEWS_UPDATE_INTERVAL = int(os.environ.get('NEWS_UPDATE_INTERVAL', 6))  # hours
-MAX_DAILY_ARTICLES = int(os.environ.get('MAX_DAILY_ARTICLES', 10))
+NEWS_UPDATE_INTERVAL = int(os.environ.get('NEWS_UPDATE_INTERVAL', 24))  # hours
+MAX_DAILY_ARTICLES = int(os.environ.get('MAX_DAILY_ARTICLES', 5))
 RELEVANCE_THRESHOLD = float(os.environ.get('RELEVANCE_THRESHOLD', 6.0))
 
 # News Sources Configuration

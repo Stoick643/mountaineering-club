@@ -84,17 +84,74 @@
             {% include 'components/today_in_history_widget.html' %}
         </div>
         <div class="col-lg-6">
-            <!-- Future: News Feed Widget -->
-            <div class="card border-info mb-4">
+            <!-- News Feed Widget -->
+            <div class="card border-info mb-4" id="news-widget">
                 <div class="card-header bg-info text-white">
-                    <h6 class="mb-0">
-                        <i class="fas fa-newspaper"></i> 
-                        Aktualne Novice
-                    </h6>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">
+                            <i class="fas fa-newspaper"></i> 
+                            Aktualne Novice
+                        </h6>
+                        <div class="widget-actions">
+                            <button class="btn btn-sm btn-outline-light" onclick="refreshNews()" title="Osveži novice">
+                                <i class="fas fa-sync-alt" id="news-refresh-icon"></i>
+                            </button>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-outline-light dropdown-toggle" type="button" 
+                                        data-bs-toggle="dropdown" title="Kategorije">
+                                    <i class="fas fa-filter"></i>
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="#" onclick="filterNewsByCategory('all')">Vse novice</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="filterNewsByCategory('local')">Lokalne</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="filterNewsByCategory('safety')">Varnost</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="filterNewsByCategory('equipment')">Oprema</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="filterNewsByCategory('achievement')">Dosežki</a></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="card-body text-center">
-                    <p class="text-muted">Novice iz sveta alpinizma</p>
-                    <small class="text-muted">Kmalu na voljo...</small>
+                
+                <!-- Loading State -->
+                <div id="news-loading" class="card-body text-center">
+                    <div class="spinner-border text-info" role="status">
+                        <span class="visually-hidden">Nalaganje novic...</span>
+                    </div>
+                    <p class="mt-2 text-muted">Nalaganje najnovejših novic...</p>
+                </div>
+                
+                <!-- Content State -->
+                <div id="news-content" class="card-body" style="display: none;">
+                    <div id="news-list">
+                        <!-- News articles will be loaded here -->
+                    </div>
+                    <div class="text-center mt-3">
+                        <small class="text-muted">
+                            <i class="fas fa-robot"></i> Kurirane z AI | 
+                            <i class="fas fa-clock"></i> Posodobljeno <span id="news-last-updated">--</span>
+                        </small>
+                    </div>
+                </div>
+                
+                <!-- Error State -->
+                <div id="news-error" class="card-body text-center" style="display: none;">
+                    <div class="text-danger mb-2">
+                        <i class="fas fa-exclamation-triangle fa-2x"></i>
+                    </div>
+                    <p class="text-muted mb-3">Napaka pri nalaganju novic</p>
+                    <button class="btn btn-outline-info btn-sm" onclick="refreshNews()">
+                        <i class="fas fa-retry"></i> Poskusi znova
+                    </button>
+                </div>
+                
+                <!-- Empty State -->
+                <div id="news-empty" class="card-body text-center" style="display: none;">
+                    <div class="text-muted mb-2">
+                        <i class="fas fa-newspaper fa-2x"></i>
+                    </div>
+                    <p class="text-muted mb-3">Trenutno ni novih novic</p>
+                    <small class="text-muted">Novice se posodabljajo vsak dan ob 6:00</small>
                 </div>
             </div>
         </div>
@@ -400,6 +457,154 @@ function loadRecentMessages() {
     // TODO: Load recent chat messages from server
     const messagesDiv = document.getElementById('chat-messages');
     messagesDiv.innerHTML = '<p class="text-muted">Loading messages...</p>';
+}
+
+// News functionality
+let currentNewsCategory = 'all';
+
+// Load news on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadLatestNews();
+});
+
+async function loadLatestNews(category = 'all') {
+    showNewsLoadingState();
+    currentNewsCategory = category;
+    
+    try {
+        const url = category === 'all' ? '/api/news/latest' : `/api/news/category/${category}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.success && data.articles) {
+            displayNews(data.articles);
+        } else {
+            showNewsEmptyState();
+        }
+    } catch (error) {
+        console.error('Error loading news:', error);
+        showNewsErrorState();
+    }
+}
+
+async function refreshNews() {
+    const refreshIcon = document.getElementById('news-refresh-icon');
+    refreshIcon.classList.add('fa-spin');
+    
+    try {
+        await loadLatestNews(currentNewsCategory);
+    } finally {
+        refreshIcon.classList.remove('fa-spin');
+    }
+}
+
+function filterNewsByCategory(category) {
+    loadLatestNews(category);
+}
+
+function displayNews(articles) {
+    const newsList = document.getElementById('news-list');
+    
+    if (articles.length === 0) {
+        showNewsEmptyState();
+        return;
+    }
+    
+    newsList.innerHTML = articles.map(article => `
+        <div class="news-item mb-3 pb-3 border-bottom">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <h6 class="news-title mb-1">
+                    <a href="${article.original_url}" target="_blank" class="text-decoration-none">
+                        ${escapeHtml(article.title)}
+                        <i class="fas fa-external-link-alt fa-xs ms-1"></i>
+                    </a>
+                </h6>
+                <div class="news-badges">
+                    ${getNewsLevelBadge(article.relevance_score)}
+                    ${getCategoryBadge(article.category)}
+                </div>
+            </div>
+            
+            <p class="news-summary text-muted mb-2">${escapeHtml(article.summary)}</p>
+            
+            <div class="news-meta">
+                <small class="text-muted">
+                    <i class="fas fa-globe"></i> ${escapeHtml(article.source_name)} | 
+                    <i class="fas fa-clock"></i> ${formatNewsDate(article.published_at)} |
+                    <i class="fas fa-chart-line"></i> Relevanca: ${article.relevance_score}/10
+                </small>
+            </div>
+        </div>
+    `).join('');
+    
+    // Update last updated time
+    document.getElementById('news-last-updated').textContent = formatNewsDate(new Date().toISOString());
+    
+    showNewsContentState();
+}
+
+function getNewsLevelBadge(score) {
+    if (score >= 8) return '<span class="badge bg-success ms-1">Visoka</span>';
+    if (score >= 7) return '<span class="badge bg-info ms-1">Pomembna</span>';
+    if (score >= 6) return '<span class="badge bg-warning ms-1">Zanimiva</span>';
+    return '<span class="badge bg-secondary ms-1">Osnovna</span>';
+}
+
+function getCategoryBadge(category) {
+    const categories = {
+        'local': { label: 'Lokalne', class: 'bg-primary' },
+        'safety': { label: 'Varnost', class: 'bg-danger' },
+        'equipment': { label: 'Oprema', class: 'bg-info' },
+        'achievement': { label: 'Dosežki', class: 'bg-success' },
+        'expedition': { label: 'Odprave', class: 'bg-warning text-dark' },
+        'general': { label: 'Splošno', class: 'bg-secondary' }
+    };
+    
+    const cat = categories[category] || categories.general;
+    return `<span class="badge ${cat.class} ms-1">${cat.label}</span>`;
+}
+
+function formatNewsDate(dateString) {
+    if (!dateString) return '--';
+    
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffHours = Math.floor((now - date) / (1000 * 60 * 60));
+    
+    if (diffHours < 1) return 'Pred kratkim';
+    if (diffHours < 24) return `Pred ${diffHours}h`;
+    if (diffHours < 48) return 'Včeraj';
+    
+    return date.toLocaleDateString('sl-SI');
+}
+
+// News widget state management
+function showNewsLoadingState() {
+    document.getElementById('news-loading').style.display = 'block';
+    document.getElementById('news-content').style.display = 'none';
+    document.getElementById('news-error').style.display = 'none';
+    document.getElementById('news-empty').style.display = 'none';
+}
+
+function showNewsContentState() {
+    document.getElementById('news-loading').style.display = 'none';
+    document.getElementById('news-content').style.display = 'block';
+    document.getElementById('news-error').style.display = 'none';
+    document.getElementById('news-empty').style.display = 'none';
+}
+
+function showNewsErrorState() {
+    document.getElementById('news-loading').style.display = 'none';
+    document.getElementById('news-content').style.display = 'none';
+    document.getElementById('news-error').style.display = 'block';
+    document.getElementById('news-empty').style.display = 'none';
+}
+
+function showNewsEmptyState() {
+    document.getElementById('news-loading').style.display = 'none';
+    document.getElementById('news-content').style.display = 'none';
+    document.getElementById('news-error').style.display = 'none';
+    document.getElementById('news-empty').style.display = 'block';
 }
 </script>
 {% endblock %}

@@ -76,6 +76,14 @@ class DeepSeekClient:
             Poišči pomemben zgodovinski dogodek iz sveta alpinizma, planinarstva ali gorništva, 
             ki se je zgodil na datum {month_day} (poljubno leto).
             
+            PREDNOSTNO vključi dogodke povezane s:
+            - Slovenskim alpinizmom (Julijske Alpe, Kamniške Alpe, Triglav)
+            - Slovenskimi alpinisti (Aleš Česen, Tomaž Humar, Silvo Karo, etc.)
+            - Vzhodnimi Alpami in sosednjimi gorami
+            - Zgodovino slovenskega gorništva in PZS
+            
+            Če ni slovenskega dogodka, poišči mednarodni dogodek.
+            
             Odgovori SAMO v JSON formatu z naslednjimi polji:
             {{
                 "year": leto_dogodka,

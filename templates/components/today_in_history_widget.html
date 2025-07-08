@@ -133,5 +133,165 @@ function formatTodayDate() {
 // Set today's date on widget load
 document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('today-date').textContent = formatTodayDate();
+    loadTodayEvent();
 });
+
+// Load today's historical event
+async function loadTodayEvent() {
+    showLoadingState();
+    
+    try {
+        const response = await fetch('/api/today-in-history');
+        const data = await response.json();
+        
+        if (data.success && data.event) {
+            displayEvent(data.event);
+        } else {
+            showEmptyState();
+        }
+    } catch (error) {
+        console.error('Error loading today\'s event:', error);
+        showErrorState();
+    }
+}
+
+// Refresh today's event
+async function refreshTodayEvent() {
+    const refreshIcon = document.getElementById('refresh-icon');
+    refreshIcon.classList.add('fa-spin');
+    
+    try {
+        // Add cache-busting parameter
+        const response = await fetch('/api/today-in-history?' + new Date().getTime());
+        const data = await response.json();
+        
+        if (data.success && data.event) {
+            displayEvent(data.event);
+        } else {
+            showEmptyState();
+        }
+    } catch (error) {
+        console.error('Error refreshing event:', error);
+        showErrorState();
+    } finally {
+        refreshIcon.classList.remove('fa-spin');
+    }
+}
+
+// Get random event
+async function getRandomEvent() {
+    showLoadingState();
+    
+    try {
+        const response = await fetch('/api/today-in-history/random');
+        const data = await response.json();
+        
+        if (data.success && data.event) {
+            displayEvent(data.event);
+        } else {
+            showEmptyState();
+        }
+    } catch (error) {
+        console.error('Error loading random event:', error);
+        showErrorState();
+    }
+}
+
+// Display event data
+function displayEvent(event) {
+    document.getElementById('event-year').textContent = event.year || '';
+    document.getElementById('event-title').textContent = event.title || '';
+    document.getElementById('event-description').textContent = event.description || '';
+    document.getElementById('event-location').textContent = event.location || '';
+    
+    // Set category badge
+    const categoryElement = document.getElementById('event-category');
+    const categoryInfo = EVENT_CATEGORIES[event.category] || { label: event.category, class: 'bg-secondary' };
+    categoryElement.textContent = categoryInfo.label;
+    categoryElement.className = `badge ${categoryInfo.class}`;
+    
+    // Show people if available
+    const peopleContainer = document.getElementById('event-people-container');
+    if (event.people && event.people.length > 0) {
+        document.getElementById('event-people').textContent = event.people.join(', ');
+        peopleContainer.style.display = 'block';
+    } else {
+        peopleContainer.style.display = 'none';
+    }
+    
+    // Show source if available
+    const sourceContainer = document.getElementById('event-source-container');
+    if (event.source) {
+        document.getElementById('event-source').textContent = event.source;
+        sourceContainer.style.display = 'block';
+    } else {
+        sourceContainer.style.display = 'none';
+    }
+    
+    showContentState();
+}
+
+// Show different widget states
+function showLoadingState() {
+    document.getElementById('history-loading').style.display = 'block';
+    document.getElementById('history-content').style.display = 'none';
+    document.getElementById('history-error').style.display = 'none';
+    document.getElementById('history-empty').style.display = 'none';
+}
+
+function showContentState() {
+    document.getElementById('history-loading').style.display = 'none';
+    document.getElementById('history-content').style.display = 'block';
+    document.getElementById('history-error').style.display = 'none';
+    document.getElementById('history-empty').style.display = 'none';
+}
+
+function showErrorState() {
+    document.getElementById('history-loading').style.display = 'none';
+    document.getElementById('history-content').style.display = 'none';
+    document.getElementById('history-error').style.display = 'block';
+    document.getElementById('history-empty').style.display = 'none';
+}
+
+function showEmptyState() {
+    document.getElementById('history-loading').style.display = 'none';
+    document.getElementById('history-content').style.display = 'none';
+    document.getElementById('history-error').style.display = 'none';
+    document.getElementById('history-empty').style.display = 'block';
+}
+
+// Event action functions
+function shareEvent() {
+    const title = document.getElementById('event-title').textContent;
+    const year = document.getElementById('event-year').textContent;
+    
+    if (navigator.share) {
+        navigator.share({
+            title: `${year} - ${title}`,
+            text: document.getElementById('event-description').textContent,
+            url: window.location.href
+        });
+    } else {
+        // Fallback: copy to clipboard
+        const shareText = `${year} - ${title}\n${document.getElementById('event-description').textContent}`;
+        navigator.clipboard.writeText(shareText).then(() => {
+            alert('Dogodek kopiran v odložišče!');
+        });
+    }
+}
+
+function viewMoreHistory() {
+    // Placeholder for future feature - could open modal with more events
+    alert('Funkcija "Več zgodovine" bo kmalu na voljo!');
+}
+
+function likeEvent() {
+    // Placeholder for future feature - could track likes
+    const likeButton = event.target.closest('button');
+    const countSpan = document.getElementById('like-count');
+    let count = parseInt(countSpan.textContent) || 0;
+    countSpan.textContent = count + 1;
+    likeButton.disabled = true;
+    likeButton.innerHTML = '<i class="fas fa-heart"></i> ' + (count + 1);
+}
 </script>

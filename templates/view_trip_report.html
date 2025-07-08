@@ -56,21 +56,28 @@
     </div>
     
     <!-- Photos Gallery -->
-    {% if trip_report.photos %}
     <div class="row mb-4">
         <div class="col-12">
             <h3><i class="fas fa-images"></i> Photos ({{ trip_report.photos|length }})</h3>
+            <!-- DEBUG: Show raw photos data -->
+            <pre style="background: #f0f0f0; padding: 10px; font-size: 12px;">{{ trip_report.photos }}</pre>
+        </div>
+    </div>
+    
+    {% if trip_report.photos %}
+    <div class="row mb-4">
+        <div class="col-12">
             <div class="photo-gallery">
                 <div class="row">
                     {% for photo in trip_report.photos %}
                     <div class="col-lg-3 col-md-4 col-sm-6 mb-3">
-                        <img src="{{ photo.thumbnail_url }}" 
+                        <img src="{{ photo['thumbnail_url'] }}" 
                              class="img-fluid rounded shadow-sm" 
                              alt="Trip photo"
                              data-bs-toggle="modal" 
                              data-bs-target="#photoModal"
-                             data-full-url="{{ photo.url }}"
-                             onclick="showFullPhoto('{{ photo.url }}')">
+                             data-full-url="{{ photo['url'] }}"
+                             onclick="showFullPhoto('{{ photo['url'] }}')">
                     </div>
                     {% endfor %}
                 </div>

@@ -74,11 +74,7 @@
                         <li class="nav-item">
                             <a class="nav-link" href="{{ url_for('trip_reports') }}">Poročila o izletih</a>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('chat') }}">
-                                <i class="fas fa-comments"></i> Klepet
-                            </a>
-                        </li>
+                        <!-- Chat navigation removed - feature cancelled -->
                         {% if session.is_admin %}
                             <li class="nav-item dropdown">
                                 <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown">

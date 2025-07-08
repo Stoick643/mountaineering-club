@@ -5,6 +5,10 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import os
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 import logging
 from functools import wraps
 import redis
@@ -18,6 +22,11 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import requests
 import json
+
+# Import AI services
+from ai_services.content_generator_sqlalchemy import HistoricalEventGenerator
+from ai_services.deepseek_client import DeepSeekClient
+from ai_services.news_curator import NewsCurator
 
 app = Flask(__name__)
 
@@ -172,6 +181,66 @@ class TripParticipant(db.Model):
     def user_name(self):
         return self.user.full_name if self.user else 'Unknown'
 
+class HistoricalEvent(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.String(5), nullable=False)  # MM-DD format
+    year = db.Column(db.Integer)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    location = db.Column(db.String(200))
+    people = db.Column(db.JSON)  # Store people names as JSON array
+    category = db.Column(db.String(50))  # first_ascent, tragedy, discovery, etc.
+    source = db.Column(db.String(50), default='AI-generated')
+    language = db.Column(db.String(5), default='sl')
+    is_featured = db.Column(db.Boolean, default=False)
+    is_verified = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'date': self.date,
+            'year': self.year,
+            'title': self.title,
+            'description': self.description,
+            'location': self.location,
+            'people': self.people or [],
+            'category': self.category,
+            'source': self.source,
+            'language': self.language,
+            'is_featured': self.is_featured,
+            'is_verified': self.is_verified,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+class News(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(300), nullable=False)
+    summary = db.Column(db.Text)
+    original_url = db.Column(db.String(500))
+    source_name = db.Column(db.String(100))
+    relevance_score = db.Column(db.Float, default=5.0)
+    language = db.Column(db.String(5), default='sl')
+    category = db.Column(db.String(50))  # safety, equipment, achievement, etc.
+    is_featured = db.Column(db.Boolean, default=False)
+    published_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'title': self.title,
+            'summary': self.summary,
+            'original_url': self.original_url,
+            'source_name': self.source_name,
+            'relevance_score': self.relevance_score,
+            'language': self.language,
+            'category': self.category,
+            'is_featured': self.is_featured,
+            'published_at': self.published_at.isoformat() if self.published_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
 # ChatMessage model removed - feature cancelled
 # Disable Redis for now - networking issue
 # redis_client = redis.Redis(host=os.environ.get('REDIS_HOST', 'localhost'), 
@@ -187,6 +256,16 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Initialize image handler
 image_handler = ImageHandler()
+
+# Initialize AI services
+deepseek_client = DeepSeekClient()
+
+# Initialize AI service generators (will be set up after app context)
+def get_historical_generator():
+    return HistoricalEventGenerator(db, HistoricalEvent, deepseek_client)
+
+def get_news_curator():
+    return NewsCurator(db, News, deepseek_client)
 
 # Initialize OAuth
 oauth = OAuth(app)
@@ -995,7 +1074,251 @@ def delete_trip_report(trip_id):
     
     return redirect(url_for('trip_reports'))
 
-# Chat routes removed - feature cancelled
+# AI Content API routes
+@app.route('/api/today-in-history')
+@login_required
+def get_today_in_history():
+    """Get today's historical mountaineering event"""
+    try:
+        generator = get_historical_generator()
+        event = generator.get_today_event()
+        
+        if event:
+            return jsonify({'success': True, 'event': event})
+        else:
+            return jsonify({'success': False, 'error': 'No event found for today'}), 404
+            
+    except Exception as e:
+        logger.error(f"Error getting today's historical event: {e}")
+        return jsonify({'success': False, 'error': 'Failed to load historical event'}), 500
+
+@app.route('/api/today-in-history/date/<date>')
+@login_required
+def get_historical_event_by_date(date):
+    """Get historical event for specific date (MM-DD format)"""
+    try:
+        # Validate date format
+        if not date or len(date) != 5 or date[2] != '-':
+            return jsonify({'success': False, 'error': 'Invalid date format. Use MM-DD'}), 400
+        
+        generator = get_historical_generator()
+        event = generator.get_today_event(date)
+        
+        if event:
+            return jsonify({'success': True, 'event': event})
+        else:
+            return jsonify({'success': False, 'error': f'No event found for {date}'}), 404
+            
+    except Exception as e:
+        logger.error(f"Error getting historical event for {date}: {e}")
+        return jsonify({'success': False, 'error': 'Failed to load historical event'}), 500
+
+@app.route('/api/today-in-history/random')
+@login_required
+def get_random_historical_event():
+    """Get a random historical mountaineering event"""
+    try:
+        generator = get_historical_generator()
+        event = generator.get_random_event()
+        
+        if event:
+            return jsonify({'success': True, 'event': event})
+        else:
+            return jsonify({'success': False, 'error': 'No historical events available'}), 404
+            
+    except Exception as e:
+        logger.error(f"Error getting random historical event: {e}")
+        return jsonify({'success': False, 'error': 'Failed to load random event'}), 500
+
+@app.route('/api/today-in-history/category/<category>')
+@login_required
+def get_historical_events_by_category(category):
+    """Get historical events by category"""
+    try:
+        limit = request.args.get('limit', 10, type=int)
+        generator = get_historical_generator()
+        events = generator.get_events_by_category(category, limit)
+        
+        return jsonify({'success': True, 'events': events, 'category': category})
+        
+    except Exception as e:
+        logger.error(f"Error getting events by category {category}: {e}")
+        return jsonify({'success': False, 'error': 'Failed to load events'}), 500
+
+@app.route('/api/today-in-history/search')
+@login_required
+def search_historical_events():
+    """Search historical events"""
+    try:
+        query = request.args.get('q', '').strip()
+        limit = request.args.get('limit', 10, type=int)
+        
+        if not query:
+            return jsonify({'success': False, 'error': 'Search query is required'}), 400
+        
+        generator = get_historical_generator()
+        events = generator.search_events(query, limit)
+        
+        return jsonify({'success': True, 'events': events, 'query': query})
+        
+    except Exception as e:
+        logger.error(f"Error searching historical events: {e}")
+        return jsonify({'success': False, 'error': 'Search failed'}), 500
+
+# Admin routes for historical events
+@app.route('/api/admin/historical-events/<int:event_id>/verify', methods=['POST'])
+@admin_required
+def verify_historical_event(event_id):
+    """Mark historical event as verified (admin only)"""
+    try:
+        generator = get_historical_generator()
+        success = generator.verify_event(event_id)
+        
+        if success:
+            return jsonify({'success': True, 'message': 'Event verified successfully'})
+        else:
+            return jsonify({'success': False, 'error': 'Event not found'}), 404
+            
+    except Exception as e:
+        logger.error(f"Error verifying event {event_id}: {e}")
+        return jsonify({'success': False, 'error': 'Failed to verify event'}), 500
+
+@app.route('/api/admin/historical-events/<int:event_id>/feature', methods=['POST'])
+@admin_required
+def feature_historical_event(event_id):
+    """Mark historical event as featured (admin only)"""
+    try:
+        generator = get_historical_generator()
+        success = generator.mark_as_featured(event_id)
+        
+        if success:
+            return jsonify({'success': True, 'message': 'Event marked as featured'})
+        else:
+            return jsonify({'success': False, 'error': 'Event not found'}), 404
+            
+    except Exception as e:
+        logger.error(f"Error featuring event {event_id}: {e}")
+        return jsonify({'success': False, 'error': 'Failed to feature event'}), 500
+
+@app.route('/api/admin/historical-events/generate-range', methods=['POST'])
+@admin_required
+def generate_historical_events_range():
+    """Generate historical events for date range (admin only)"""
+    try:
+        data = request.get_json()
+        start_date = data.get('start_date')
+        end_date = data.get('end_date')
+        
+        if not start_date or not end_date:
+            return jsonify({'success': False, 'error': 'start_date and end_date required'}), 400
+        
+        generator = get_historical_generator()
+        count = generator.generate_events_for_date_range(start_date, end_date)
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Generated {count} historical events',
+            'generated_count': count
+        })
+        
+    except Exception as e:
+        logger.error(f"Error generating event range: {e}")
+        return jsonify({'success': False, 'error': 'Failed to generate events'}), 500
+
+@app.route('/api/admin/historical-events/stats')
+@admin_required
+def get_historical_events_stats():
+    """Get statistics about historical events (admin only)"""
+    try:
+        generator = get_historical_generator()
+        stats = generator.get_statistics()
+        
+        return jsonify({'success': True, 'stats': stats})
+        
+    except Exception as e:
+        logger.error(f"Error getting historical events stats: {e}")
+        return jsonify({'success': False, 'error': 'Failed to get statistics'}), 500
+
+# News API routes
+@app.route('/api/news/latest')
+@login_required
+def get_latest_news():
+    """Get latest curated news articles"""
+    try:
+        limit = request.args.get('limit', 5, type=int)
+        category = request.args.get('category')
+        
+        curator = get_news_curator()
+        articles = curator.get_latest_news(limit=limit, category=category)
+        
+        return jsonify({'success': True, 'articles': articles})
+        
+    except Exception as e:
+        logger.error(f"Error getting latest news: {e}")
+        return jsonify({'success': False, 'error': 'Failed to load news'}), 500
+
+@app.route('/api/news/category/<category>')
+@login_required
+def get_news_by_category(category):
+    """Get news articles by category"""
+    try:
+        limit = request.args.get('limit', 5, type=int)
+        
+        curator = get_news_curator()
+        articles = curator.get_latest_news(limit=limit, category=category)
+        
+        return jsonify({'success': True, 'articles': articles, 'category': category})
+        
+    except Exception as e:
+        logger.error(f"Error getting news by category {category}: {e}")
+        return jsonify({'success': False, 'error': 'Failed to load news'}), 500
+
+@app.route('/api/news/categories')
+@login_required
+def get_news_by_categories():
+    """Get news grouped by all categories"""
+    try:
+        curator = get_news_curator()
+        articles_by_category = curator.get_news_by_category()
+        
+        return jsonify({'success': True, 'categories': articles_by_category})
+        
+    except Exception as e:
+        logger.error(f"Error getting news by categories: {e}")
+        return jsonify({'success': False, 'error': 'Failed to load news'}), 500
+
+# Admin routes for news
+@app.route('/api/admin/news/update', methods=['POST'])
+@admin_required
+def update_news_feed():
+    """Manually trigger news update (admin only)"""
+    try:
+        curator = get_news_curator()
+        stats = curator.fetch_and_process_feeds()
+        
+        return jsonify({
+            'success': True, 
+            'message': 'News feed updated successfully',
+            'stats': stats
+        })
+        
+    except Exception as e:
+        logger.error(f"Error updating news feed: {e}")
+        return jsonify({'success': False, 'error': 'Failed to update news feed'}), 500
+
+@app.route('/api/admin/news/stats')
+@admin_required
+def get_news_stats():
+    """Get news curation statistics (admin only)"""
+    try:
+        curator = get_news_curator()
+        stats = curator.get_statistics()
+        
+        return jsonify({'success': True, 'stats': stats})
+        
+    except Exception as e:
+        logger.error(f"Error getting news stats: {e}")
+        return jsonify({'success': False, 'error': 'Failed to get statistics'}), 500
 
 # Trip Planning routes
 @app.route('/planned-trips')
@@ -1198,8 +1521,56 @@ def update_gear_list(trip_id):
     
     return redirect(url_for('view_planned_trip', trip_id=trip_id))
 
+# Background task for news updates
+import threading
+import time
+
+def news_update_scheduler():
+    """Background task to update news every 24 hours at 6 AM"""
+    
+    while True:
+        try:
+            # Calculate seconds until next 6 AM
+            now = datetime.now()
+            next_6am = now.replace(hour=6, minute=0, second=0, microsecond=0)
+            
+            # If it's already past 6 AM today, schedule for tomorrow
+            if now.hour >= 6:
+                next_6am = next_6am + timedelta(days=1)
+            
+            sleep_seconds = (next_6am - now).total_seconds()
+            
+            logger.info(f"News update scheduled for {next_6am}, sleeping for {sleep_seconds/3600:.1f} hours")
+            time.sleep(sleep_seconds)
+            
+            # Update news
+            with app.app_context():
+                try:
+                    curator = get_news_curator()
+                    stats = curator.fetch_and_process_feeds()
+                    logger.info(f"Scheduled news update completed: {stats}")
+                except Exception as e:
+                    logger.error(f"Scheduled news update failed: {e}")
+            
+        except Exception as e:
+            logger.error(f"News scheduler error: {e}")
+            # Sleep for 1 hour before retrying
+            time.sleep(3600)
+
+# Start background news scheduler
+def start_background_tasks():
+    """Start background tasks"""
+    if os.environ.get('FLASK_ENV') != 'development':
+        # Only run scheduler in production
+        news_thread = threading.Thread(target=news_update_scheduler, daemon=True)
+        news_thread.start()
+        logger.info("Background news scheduler started")
+
 # WebSocket events for chat removed - feature cancelled
 
 if __name__ == '__main__':
+    # Start background tasks
+    start_background_tasks()
+    
     port = int(os.environ.get('PORT', 5000))
     socketio.run(app, debug=True, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True)
