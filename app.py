@@ -1357,14 +1357,38 @@ def create_tables_temp():
 @app.route('/test-s3-temp')
 def test_s3_temp():
     try:
-        from image_handler import ImageHandler
-        handler = ImageHandler()
+        import boto3
+        import os
+        from botocore.config import Config
         
-        # Test S3 connection
-        response = handler.s3_client.list_objects_v2(Bucket=handler.bucket_name, MaxKeys=1)
-        return f'S3 connection OK! Bucket: {handler.bucket_name}, Region: {handler.s3_client.meta.region_name}'
+        # Check environment variables
+        aws_key = os.environ.get('AWS_ACCESS_KEY_ID')
+        aws_secret = os.environ.get('AWS_SECRET_ACCESS_KEY')
+        aws_region = os.environ.get('AWS_REGION')
+        bucket_name = os.environ.get('AWS_S3_BUCKET')
+        
+        debug_info = f"""
+        AWS_ACCESS_KEY_ID: {'SET' if aws_key else 'MISSING'}
+        AWS_SECRET_ACCESS_KEY: {'SET' if aws_secret else 'MISSING'}
+        AWS_REGION: {aws_region}
+        AWS_S3_BUCKET: {bucket_name}
+        """
+        
+        # Test basic S3 connection
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=aws_key,
+            aws_secret_access_key=aws_secret,
+            region_name=aws_region,
+            config=Config(s3={'addressing_style': 'path'})
+        )
+        
+        # Test if bucket exists
+        response = s3_client.head_bucket(Bucket=bucket_name)
+        return f'S3 connection OK!{debug_info}'
+        
     except Exception as e:
-        return f'S3 Error: {str(e)}'
+        return f'S3 Error: {str(e)}{debug_info if "debug_info" in locals() else ""}'
 
 # Trip Planning routes
 @app.route('/planned-trips')
