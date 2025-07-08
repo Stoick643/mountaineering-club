@@ -1374,12 +1374,18 @@ def test_s3_temp():
         AWS_S3_BUCKET: {bucket_name}
         """
         
-        # Test basic S3 connection
+        # Test basic S3 connection with longer timeout
+        from botocore.config import Config
         s3_client = boto3.client(
             's3',
             aws_access_key_id=aws_key,
             aws_secret_access_key=aws_secret,
-            region_name=aws_region
+            region_name=aws_region,
+            config=Config(
+                retries={'max_attempts': 3},
+                connect_timeout=60,
+                read_timeout=60
+            )
         )
         
         # Test if we can connect to S3 at all (list buckets)
