@@ -1353,6 +1353,19 @@ def create_tables_temp():
     except Exception as e:
         return f'Error creating tables: {str(e)}'
 
+# Test S3 connection
+@app.route('/test-s3-temp')
+def test_s3_temp():
+    try:
+        from image_handler import ImageHandler
+        handler = ImageHandler()
+        
+        # Test S3 connection
+        response = handler.s3_client.list_objects_v2(Bucket=handler.bucket_name, MaxKeys=1)
+        return f'S3 connection OK! Bucket: {handler.bucket_name}, Region: {handler.s3_client.meta.region_name}'
+    except Exception as e:
+        return f'S3 Error: {str(e)}'
+
 # Trip Planning routes
 @app.route('/planned-trips')
 @login_required
