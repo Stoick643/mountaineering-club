@@ -1383,9 +1383,18 @@ def test_s3_temp():
             config=Config(s3={'addressing_style': 'path'})
         )
         
-        # Test if bucket exists
-        response = s3_client.head_bucket(Bucket=bucket_name)
-        return f'S3 connection OK!{debug_info}'
+        # Test if we can connect to S3 at all (list buckets)
+        try:
+            buckets = s3_client.list_buckets()
+            bucket_names = [b['Name'] for b in buckets['Buckets']]
+            
+            # Check if our bucket exists
+            if bucket_name in bucket_names:
+                return f'S3 connection OK! Bucket found.{debug_info}'
+            else:
+                return f'S3 connection OK but bucket not found. Available buckets: {bucket_names}{debug_info}'
+        except Exception as list_error:
+            return f'S3 list_buckets error: {str(list_error)}{debug_info}'
         
     except Exception as e:
         return f'S3 Error: {str(e)}{debug_info if "debug_info" in locals() else ""}'
