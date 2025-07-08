@@ -237,8 +237,8 @@ class News(db.Model):
             'language': self.language,
             'category': self.category,
             'is_featured': self.is_featured,
-            'published_at': self.published_at.isoformat() if self.published_at else None,
-            'created_at': self.created_at.isoformat() if self.created_at else None
+            'published_at': self.published_at.isoformat() if self.published_at and hasattr(self.published_at, 'isoformat') else str(self.published_at) if self.published_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at and hasattr(self.created_at, 'isoformat') else str(self.created_at) if self.created_at else None
         }
 
 # ChatMessage model removed - feature cancelled
@@ -672,7 +672,7 @@ def get_comments(content_type, content_id):
                 'content': comment.content,
                 'author_name': comment.author.full_name if comment.author else 'Unknown',
                 'author_id': comment.author_id,
-                'created_at': comment.created_at.isoformat()
+                'created_at': comment.created_at.isoformat() if hasattr(comment.created_at, 'isoformat') else str(comment.created_at)
             })
         
         return jsonify({'comments': comments_data})
@@ -725,7 +725,7 @@ def add_comment(content_type, content_id):
             'content': new_comment.content,
             'author_name': new_comment.author.full_name,
             'author_id': new_comment.author_id,
-            'created_at': new_comment.created_at.isoformat()
+            'created_at': new_comment.created_at.isoformat() if hasattr(new_comment.created_at, 'isoformat') else str(new_comment.created_at)
         }
         
         logger.info(f"User {session['user_name']} added comment to {content_type} {content_id}")
@@ -785,7 +785,7 @@ def today_in_history():
             if '_id' in today_event:
                 today_event['_id'] = str(today_event['_id'])
             if 'created_at' in today_event:
-                today_event['created_at'] = today_event['created_at'].isoformat()
+                today_event['created_at'] = today_event['created_at'].isoformat() if hasattr(today_event['created_at'], 'isoformat') else str(today_event['created_at'])
             
             return jsonify({
                 'success': True,
@@ -833,7 +833,7 @@ def history_by_date(date):
             if '_id' in event:
                 event['_id'] = str(event['_id'])
             if 'created_at' in event:
-                event['created_at'] = event['created_at'].isoformat()
+                event['created_at'] = event['created_at'].isoformat() if hasattr(event['created_at'], 'isoformat') else str(event['created_at'])
             
             return jsonify({
                 'success': True,
@@ -870,7 +870,7 @@ def random_history():
             if '_id' in event:
                 event['_id'] = str(event['_id'])
             if 'created_at' in event:
-                event['created_at'] = event['created_at'].isoformat()
+                event['created_at'] = event['created_at'].isoformat() if hasattr(event['created_at'], 'isoformat') else str(event['created_at'])
             
             return jsonify({
                 'success': True,
@@ -907,7 +907,7 @@ def featured_history():
             if '_id' in event:
                 event['_id'] = str(event['_id'])
             if 'created_at' in event:
-                event['created_at'] = event['created_at'].isoformat()
+                event['created_at'] = event['created_at'].isoformat() if hasattr(event['created_at'], 'isoformat') else str(event['created_at'])
         
         return jsonify({
             'success': True,
