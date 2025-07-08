@@ -775,7 +775,7 @@ def today_in_history():
         
         # Initialize services
         ai_client = DeepSeekClient()
-        event_generator = HistoricalEventGenerator(mongo.db, ai_client)
+        event_generator = HistoricalEventGenerator(db, HistoricalEvent, ai_client)
         
         # Get today's event
         today_event = event_generator.get_today_event()
@@ -823,7 +823,7 @@ def history_by_date(date):
         
         # Initialize services
         ai_client = DeepSeekClient()
-        event_generator = HistoricalEventGenerator(mongo.db, ai_client)
+        event_generator = HistoricalEventGenerator(db, HistoricalEvent, ai_client)
         
         # Get event for specific date
         event = event_generator.get_today_event(date)
@@ -861,7 +861,7 @@ def random_history():
         from ai_services.deepseek_client import DeepSeekClient
         
         ai_client = DeepSeekClient()
-        event_generator = HistoricalEventGenerator(mongo.db, ai_client)
+        event_generator = HistoricalEventGenerator(db, HistoricalEvent, ai_client)
         
         event = event_generator.get_random_event()
         
@@ -898,7 +898,7 @@ def featured_history():
         from ai_services.deepseek_client import DeepSeekClient
         
         ai_client = DeepSeekClient()
-        event_generator = HistoricalEventGenerator(mongo.db, ai_client)
+        event_generator = HistoricalEventGenerator(db, HistoricalEvent, ai_client)
         
         events = event_generator.get_featured_events(limit=5)
         
