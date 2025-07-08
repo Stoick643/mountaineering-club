@@ -14,9 +14,9 @@ class ImageHandler:
             's3',
             aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
             aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
-            region_name=os.environ.get('AWS_REGION', 'eu-central-1')
+            region_name=os.environ.get('AWS_S3_REGION', 'eu-central-1')
         )
-        self.bucket_name = os.environ.get('AWS_S3_BUCKET')
+        self.bucket_name = os.environ.get('AWS_S3_BUCKET_NAME')
         self.cloudfront_domain = os.environ.get('AWS_CLOUDFRONT_DOMAIN', '')
         
     def optimize_image(self, image_file, max_width=1200, max_height=800, quality=85):
@@ -83,7 +83,7 @@ class ImageHandler:
         if self.cloudfront_domain:
             return f"https://{self.cloudfront_domain}/{key}"
         else:
-            return f"https://{self.bucket_name}.s3.{os.environ.get('AWS_REGION', 'eu-central-1')}.amazonaws.com/{key}"
+            return f"https://{self.bucket_name}.s3.{os.environ.get('AWS_S3_REGION', 'eu-central-1')}.amazonaws.com/{key}"
     
     def delete_image(self, key):
         """Delete image from S3"""
