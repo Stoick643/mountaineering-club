@@ -74,7 +74,7 @@ class DeepSeekClient:
         if language == 'sl':
             prompt = f"""
             Poišči pomemben zgodovinski dogodek iz sveta alpinizma, planinarstva ali gorništva, 
-            ki se je zgodil na datum {month_day} (poljubno leto).
+            ki se je zgodil na datum {month_day} (format MM-DD, torej mesec-dan, poljubno leto).
             
             PREDNOSTNO vključi dogodke povezane s:
             - Slovenskim alpinizmom (Julijske Alpe, Kamniške Alpe, Triglav)
@@ -99,7 +99,7 @@ class DeepSeekClient:
         else:
             prompt = f"""
             Find an important historical event from mountaineering, alpinism or climbing 
-            that happened on {month_day} (any year).
+            that happened on {month_day} (MM-DD format, meaning month-day, any year).
             
             Respond ONLY in JSON format with these fields:
             {{
