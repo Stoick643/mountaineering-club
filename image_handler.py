@@ -15,8 +15,7 @@ class ImageHandler:
             's3',
             aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
             aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
-            region_name=os.environ.get('AWS_REGION', 'eu-central-1'),
-            config=Config(s3={'addressing_style': 'path'})
+            region_name=os.environ.get('AWS_REGION', 'eu-central-1')
         )
         self.bucket_name = os.environ.get('AWS_S3_BUCKET')
         self.cloudfront_domain = os.environ.get('AWS_CLOUDFRONT_DOMAIN', '')

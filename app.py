@@ -1379,8 +1379,7 @@ def test_s3_temp():
             's3',
             aws_access_key_id=aws_key,
             aws_secret_access_key=aws_secret,
-            region_name=aws_region,
-            config=Config(s3={'addressing_style': 'path'})
+            region_name=aws_region
         )
         
         # Test if we can connect to S3 at all (list buckets)
