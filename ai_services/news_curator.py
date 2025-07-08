@@ -192,11 +192,11 @@ class NewsCurator:
                 logger.debug(f"Article '{article['title'][:50]}...' scored {relevance_score}, below threshold")
                 return None
             
-            # Generate summary (keep in English as requested)
+            # Generate summary in Slovenian
             summary = self.ai_client.summarize_news_article(
                 article['title'], 
                 article['description'], 
-                language='en',
+                language='sl',
                 max_length=200
             )
             
@@ -209,7 +209,7 @@ class NewsCurator:
                 'original_url': article['link'],
                 'source_name': article['source_name'],
                 'relevance_score': relevance_score,
-                'language': 'en',
+                'language': 'sl',
                 'category': category,
                 'published_at': article['published'],
                 'source_type': article['source_type']
