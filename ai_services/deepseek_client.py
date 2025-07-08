@@ -78,7 +78,7 @@ class DeepSeekClient:
             
             PREDNOSTNO vključi dogodke povezane s:
             - Slovenskim alpinizmom (Julijske Alpe, Kamniške Alpe, Triglav)
-            - Slovenskimi alpinisti (Aleš Česen, Tomaž Humar, Silvo Karo, etc.)
+            - Slovenskimi alpinisti (Tomo Česen, Tomaž Humar, Silvo Karo, etc.)
             - Vzhodnimi Alpami in sosednjimi gorami
             - Zgodovino slovenskega gorništva in PZS
             
