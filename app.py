@@ -770,7 +770,7 @@ def today_in_history():
     """Get historical event for today"""
     try:
         # Import AI services
-        from ai_services.content_generator import HistoricalEventGenerator
+        from ai_services.content_generator_sqlalchemy import HistoricalEventGenerator
         from ai_services.deepseek_client import DeepSeekClient
         
         # Initialize services
@@ -818,7 +818,7 @@ def history_by_date(date):
             }), 400
         
         # Import AI services
-        from ai_services.content_generator import HistoricalEventGenerator
+        from ai_services.content_generator_sqlalchemy import HistoricalEventGenerator
         from ai_services.deepseek_client import DeepSeekClient
         
         # Initialize services
@@ -857,7 +857,7 @@ def history_by_date(date):
 def random_history():
     """Get random historical event"""
     try:
-        from ai_services.content_generator import HistoricalEventGenerator
+        from ai_services.content_generator_sqlalchemy import HistoricalEventGenerator
         from ai_services.deepseek_client import DeepSeekClient
         
         ai_client = DeepSeekClient()
@@ -894,7 +894,7 @@ def random_history():
 def featured_history():
     """Get featured historical events"""
     try:
-        from ai_services.content_generator import HistoricalEventGenerator
+        from ai_services.content_generator_sqlalchemy import HistoricalEventGenerator
         from ai_services.deepseek_client import DeepSeekClient
         
         ai_client = DeepSeekClient()
@@ -1343,6 +1343,15 @@ def create_admin_temp():
         return 'Admin created! Email: admin@mountaineering.club, Password: admin123'
     except Exception as e:
         return f'Error: {str(e)}'
+
+# Temporary table creation endpoint
+@app.route('/create-tables-temp')
+def create_tables_temp():
+    try:
+        db.create_all()
+        return 'All tables created successfully!'
+    except Exception as e:
+        return f'Error creating tables: {str(e)}'
 
 # Trip Planning routes
 @app.route('/planned-trips')
