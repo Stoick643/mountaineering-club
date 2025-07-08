@@ -210,7 +210,7 @@ class HistoricalEvent(db.Model):
             'language': self.language,
             'is_featured': self.is_featured,
             'is_verified': self.is_verified,
-            'created_at': self.created_at.isoformat() if self.created_at else None
+            'created_at': self.created_at.isoformat() if self.created_at and hasattr(self.created_at, 'isoformat') else str(self.created_at) if self.created_at else None
         }
 
 class News(db.Model):
