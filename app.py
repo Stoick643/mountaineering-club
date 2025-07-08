@@ -1320,6 +1320,30 @@ def get_news_stats():
         logger.error(f"Error getting news stats: {e}")
         return jsonify({'success': False, 'error': 'Failed to get statistics'}), 500
 
+# Temporary admin creation endpoint
+@app.route('/create-admin-temp')
+def create_admin_temp():
+    try:
+        admin = User.query.filter_by(email='admin@mountaineering.club').first()
+        if admin:
+            return 'Admin already exists!'
+        
+        admin = User(
+            email='admin@mountaineering.club',
+            password_hash=generate_password_hash('admin123'),
+            first_name='Admin',
+            last_name='User',
+            is_admin=True,
+            is_approved=True,
+            is_email_verified=True
+        )
+        
+        db.session.add(admin)
+        db.session.commit()
+        return 'Admin created! Email: admin@mountaineering.club, Password: admin123'
+    except Exception as e:
+        return f'Error: {str(e)}'
+
 # Trip Planning routes
 @app.route('/planned-trips')
 @login_required
