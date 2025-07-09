@@ -77,11 +77,11 @@ class DeepSeekClient:
         
         month_day = date
         
-        # Select appropriate prompt template based on language
+        # Select appropriate prompt template based on language and format with date
         if language == 'sl':
-            prompt = HISTORICAL_EVENT_PROMPT_SL
+            prompt = HISTORICAL_EVENT_PROMPT_SL.format(date=month_day)
         else:
-            prompt = HISTORICAL_EVENT_PROMPT_EN
+            prompt = HISTORICAL_EVENT_PROMPT_EN.format(date=month_day)
         
         messages = [
             {"role": "system", "content": SYSTEM_MESSAGES['historical_events']},

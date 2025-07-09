@@ -6,7 +6,7 @@ Contains all prompt templates used by AI services for content generation.
 # Historical Event Generation Prompts
 HISTORICAL_EVENT_PROMPT_SL = """
 Poišči pomemben zgodovinski dogodek iz sveta alpinizma, planinarstva ali gorništva, 
-ki se je zgodil na današnji dan v zgodovini (poljubno leto).
+ki se je zgodil na datum {date} (format MM-DD, torej mesec-dan, poljubno leto).
 
 PREDNOSTNO vključi dogodke povezane s:
 - Slovenskim alpinizmom (Julijske Alpe, Kamniške Alpe, Triglav)
@@ -31,7 +31,7 @@ Pomembno: Odgovori SAMO z JSON, brez dodatnega besedila.
 
 HISTORICAL_EVENT_PROMPT_EN = """
 Find an important historical event from mountaineering, alpinism or climbing 
-that happened on this day in history (any year).
+that happened on {date} (MM-DD format, meaning month-day, any year).
 
 Respond ONLY in JSON format with these fields:
 {{
