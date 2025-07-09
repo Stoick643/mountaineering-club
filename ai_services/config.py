@@ -28,15 +28,24 @@ NEWS_SOURCES = {
     "international": [
         "https://www.climbing.com/feed/",
         "https://www.alpinist.com/feed/", 
-        "https://www.planetmountain.com/rss.xml"
+        "https://www.planetmountain.com/rss.xml",
+        "https://www.outsideonline.com/rss/",
+        "https://www.rockandice.com/feed/",
+        "https://www.desnivel.com/feed/",
+        "https://www.8a.nu/news/rss.xml"
     ],
     "regional": [
         "https://www.plezanje.net/rss/",
-        "https://www.gore-ljudje.net/feed/"
+        "https://www.gore-ljudje.net/feed/",
+        "https://www.planinci.si/rss/",
+        "https://www.gore-in-ljudje.net/feed/",
+        "https://www.hribi.net/rss/"
     ],
     "safety": [
         "https://avalanche.si/rss/",
-        "https://meteo.arso.gov.si/rss/"
+        "https://meteo.arso.gov.si/rss/",
+        "https://www.avalanche.org/rss/",
+        "https://www.mountain-rescue.org/feed/"
     ]
 }
 

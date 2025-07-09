@@ -1,6 +1,6 @@
 """
-News Curation Service
-Aggregates, filters and curates mountaineering news using AI.
+Simple News Curator - Clean and lightweight news aggregation
+Fetches RSS feeds and stores articles in database with optional AI enhancement.
 """
 
 import logging
@@ -9,329 +9,333 @@ import requests
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from urllib.parse import urlparse
-import re
-from .deepseek_client import DeepSeekClient
 from .config import NEWS_SOURCES, RELEVANCE_THRESHOLD, MAX_DAILY_ARTICLES
 
 logger = logging.getLogger(__name__)
 
 class NewsCurator:
-    """Curates mountaineering news from RSS feeds using AI"""
+    """Simple news curator that fetches RSS feeds and stores articles"""
     
-    def __init__(self, db, News, deepseek_client: DeepSeekClient = None):
+    def __init__(self, db, News, ai_client=None):
         self.db = db
         self.News = News
-        self.ai_client = deepseek_client or DeepSeekClient()
+        self.ai_client = ai_client
         self.relevance_threshold = RELEVANCE_THRESHOLD
         self.max_articles = MAX_DAILY_ARTICLES
     
     def fetch_and_process_feeds(self) -> Dict:
         """
-        Main curation pipeline: fetch RSS feeds, process with AI, store results
+        Fetch RSS feeds and store articles in database
         
         Returns:
-            Dict: Summary of processing results
+            Dict: Simple processing stats
         """
-        logger.info("Starting news curation process")
+        logger.info("Starting simple news curation")
         
         stats = {
             'feeds_processed': 0,
             'articles_found': 0,
-            'articles_processed': 0,
             'articles_stored': 0,
             'errors': []
         }
         
-        # Fetch articles from all RSS sources
-        all_articles = []
+        # Track articles per source for balancing (max 2 per source)
+        source_article_count = {}
         
-        for source_type, feeds in NEWS_SOURCES.items():
-            for feed_url in feeds:
-                try:
-                    articles = self._fetch_feed(feed_url, source_type)
-                    all_articles.extend(articles)
-                    stats['feeds_processed'] += 1
-                    stats['articles_found'] += len(articles)
-                    logger.info(f"Fetched {len(articles)} articles from {feed_url}")
-                    
-                except Exception as e:
-                    error_msg = f"Error fetching {feed_url}: {e}"
-                    logger.error(error_msg)
-                    stats['errors'].append(error_msg)
+        # Process Slovenian feeds first (priority), then international
+        slovenian_feeds = NEWS_SOURCES.get('regional', [])
+        international_feeds = NEWS_SOURCES.get('international', [])
+        safety_feeds = NEWS_SOURCES.get('safety', [])
         
-        # Remove duplicates
-        unique_articles = self._remove_duplicates(all_articles)
-        logger.info(f"Found {len(unique_articles)} unique articles after deduplication")
+        # Process in priority order: Slovenian → International → Safety
+        feed_priority = slovenian_feeds + international_feeds + safety_feeds
         
-        # Process articles with AI
-        processed_articles = []
-        
-        for article in unique_articles[:50]:  # Limit to avoid API costs
+        # Process each feed with source balancing
+        for feed_url in feed_priority:
             try:
-                processed = self._process_article_with_ai(article)
-                if processed:
-                    processed_articles.append(processed)
-                    stats['articles_processed'] += 1
+                logger.info(f"Fetching feed: {feed_url}")
+                feed = feedparser.parse(feed_url)
+                
+                if feed.bozo:
+                    logger.warning(f"Feed parsing warning for {feed_url}: {feed.bozo_exception}")
+                
+                stats['feeds_processed'] += 1
+                
+                # Get source name for balancing
+                source_name = self._get_source_name(feed_url)
+                
+                # Initialize source counter
+                if source_name not in source_article_count:
+                    source_article_count[source_name] = 0
+                
+                # Process articles with source limit (max 2 per source)
+                articles_from_source = 0
+                max_per_source = 2
+                
+                for entry in feed.entries:
+                    # Stop if we've reached the limit for this source
+                    if articles_from_source >= max_per_source:
+                        break
                     
+                    if self._process_article(entry, feed_url):
+                        stats['articles_stored'] += 1
+                        articles_from_source += 1
+                        source_article_count[source_name] += 1
+                        
+                    stats['articles_found'] += 1
+                
+                logger.info(f"Processed {len(feed.entries)} articles from {feed_url} (stored: {articles_from_source})")
+                
             except Exception as e:
-                error_msg = f"Error processing article {article.get('title', 'Unknown')}: {e}"
+                error_msg = f"Error processing feed {feed_url}: {str(e)}"
                 logger.error(error_msg)
                 stats['errors'].append(error_msg)
         
-        # Filter by relevance and store
-        relevant_articles = [a for a in processed_articles if a['relevance_score'] >= self.relevance_threshold]
+        # Log source distribution
+        logger.info(f"Source distribution: {source_article_count}")
         
-        # Sort by relevance score and limit to max articles
-        relevant_articles.sort(key=lambda x: x['relevance_score'], reverse=True)
-        top_articles = relevant_articles[:self.max_articles]
-        
-        for article in top_articles:
-            try:
-                if self._store_article(article):
-                    stats['articles_stored'] += 1
-                    
-            except Exception as e:
-                error_msg = f"Error storing article {article.get('title', 'Unknown')}: {e}"
-                logger.error(error_msg)
-                stats['errors'].append(error_msg)
-        
-        # Clean up old articles
+        # Clean up old articles (keep only last 30 days)
         self._cleanup_old_articles()
         
-        logger.info(f"News curation completed: {stats['articles_stored']} articles stored")
+        logger.info(f"News curation completed: {stats}")
         return stats
     
-    def _fetch_feed(self, feed_url: str, source_type: str) -> List[Dict]:
-        """Fetch and parse RSS feed"""
+    def _process_article(self, entry, feed_url: str) -> bool:
+        """
+        Process a single article from RSS feed
         
+        Args:
+            entry: RSS entry object
+            feed_url: Source feed URL
+            
+        Returns:
+            bool: True if article was stored, False if skipped
+        """
         try:
-            # Add user agent to avoid blocking
-            headers = {
-                'User-Agent': 'Mountaineering Club News Curator 1.0'
-            }
+            # Extract basic article info
+            title = entry.get('title', '').strip()
+            url = entry.get('link', '').strip()
             
-            response = requests.get(feed_url, headers=headers, timeout=30)
-            response.raise_for_status()
-            
-            feed = feedparser.parse(response.content)
-            
-            articles = []
-            for entry in feed.entries:
-                # Extract article data
-                article = {
-                    'title': self._clean_text(entry.get('title', '')),
-                    'link': entry.get('link', ''),
-                    'description': self._clean_text(entry.get('description', '')),
-                    'published': self._parse_date(entry.get('published')),
-                    'source_name': feed.feed.get('title', urlparse(feed_url).netloc),
-                    'source_type': source_type,
-                    'raw_content': entry.get('summary', '')
-                }
-                
-                # Skip if essential data missing
-                if article['title'] and article['link']:
-                    articles.append(article)
-            
-            return articles
-            
-        except Exception as e:
-            logger.error(f"Failed to fetch RSS feed {feed_url}: {e}")
-            return []
-    
-    def _remove_duplicates(self, articles: List[Dict]) -> List[Dict]:
-        """Remove duplicate articles by URL and similar titles"""
-        
-        seen_urls = set()
-        seen_titles = set()
-        unique_articles = []
-        
-        for article in articles:
-            url = article['link']
-            title = article['title'].lower().strip()
-            
-            # Skip if URL already seen
-            if url in seen_urls:
-                continue
-            
-            # Skip if very similar title already seen
-            title_words = set(title.split())
-            is_similar = False
-            
-            for seen_title in seen_titles:
-                seen_words = set(seen_title.split())
-                # If 80% of words overlap, consider it duplicate
-                if len(title_words & seen_words) / max(len(title_words), len(seen_words)) > 0.8:
-                    is_similar = True
-                    break
-            
-            if not is_similar:
-                seen_urls.add(url)
-                seen_titles.add(title)
-                unique_articles.append(article)
-        
-        return unique_articles
-    
-    def _process_article_with_ai(self, article: Dict) -> Optional[Dict]:
-        """Process article with AI for relevance scoring and summarization"""
-        
-        if not self.ai_client.is_available():
-            logger.warning("AI client not available, skipping AI processing")
-            return None
-        
-        try:
-            # Calculate relevance score
-            club_interests = ['alpinizem', 'plezanje', 'gorništvo', 'varnost', 'oprema', 'julijske alpe', 'slovenija']
-            relevance_score = self.ai_client.calculate_relevance_score(
-                article['title'], 
-                article['description'], 
-                club_interests
-            )
-            
-            # Skip if not relevant enough
-            if relevance_score < self.relevance_threshold:
-                logger.debug(f"Article '{article['title'][:50]}...' scored {relevance_score}, below threshold")
-                return None
-            
-            # Generate summary in Slovenian
-            summary = self.ai_client.summarize_news_article(
-                article['title'], 
-                article['description'], 
-                language='sl',
-                max_length=200
-            )
-            
-            # Categorize content
-            category = self._categorize_article(article['title'], article['description'])
-            
-            processed_article = {
-                'title': article['title'],
-                'summary': summary or article['description'][:200] + '...',
-                'original_url': article['link'],
-                'source_name': article['source_name'],
-                'relevance_score': relevance_score,
-                'language': 'sl',
-                'category': category,
-                'published_at': article['published'],
-                'source_type': article['source_type']
-            }
-            
-            logger.info(f"Processed article: {article['title'][:50]}... (score: {relevance_score})")
-            return processed_article
-            
-        except Exception as e:
-            logger.error(f"AI processing failed for article: {e}")
-            return None
-    
-    def _categorize_article(self, title: str, content: str) -> str:
-        """Categorize article based on content"""
-        
-        text = (title + ' ' + content).lower()
-        
-        # Local/regional content gets highest priority
-        local_keywords = ['slovenia', 'slovenija', 'alps', 'triglav', 'julian', 'kamnik', 'ljubljana']
-        if any(keyword in text for keyword in local_keywords):
-            return 'local'
-        
-        # Safety-related content
-        safety_keywords = ['avalanche', 'rescue', 'accident', 'safety', 'weather', 'conditions', 'warning']
-        if any(keyword in text for keyword in safety_keywords):
-            return 'safety'
-        
-        # Equipment and gear
-        equipment_keywords = ['gear', 'equipment', 'review', 'boots', 'rope', 'harness', 'helmet', 'technology']
-        if any(keyword in text for keyword in equipment_keywords):
-            return 'equipment'
-        
-        # Achievements and first ascents
-        achievement_keywords = ['first ascent', 'record', 'summit', 'achievement', 'breakthrough', 'milestone']
-        if any(keyword in text for keyword in achievement_keywords):
-            return 'achievement'
-        
-        # Expeditions
-        expedition_keywords = ['expedition', 'climb', 'attempt', 'team', 'mountain', 'peak']
-        if any(keyword in text for keyword in expedition_keywords):
-            return 'expedition'
-        
-        return 'general'
-    
-    def _store_article(self, article_data: Dict) -> bool:
-        """Store article in database"""
-        
-        try:
-            # Check if article already exists
-            existing = self.News.query.filter_by(original_url=article_data['original_url']).first()
-            if existing:
-                logger.debug(f"Article already exists: {article_data['title'][:50]}...")
+            if not title or not url:
                 return False
             
-            # Create new news entry
-            news_article = self.News(
-                title=article_data['title'],
-                summary=article_data['summary'],
-                original_url=article_data['original_url'],
-                source_name=article_data['source_name'],
-                relevance_score=article_data['relevance_score'],
-                language=article_data['language'],
-                category=article_data['category'],
-                is_featured=article_data['relevance_score'] >= 8.0,  # Auto-feature high relevance
-                published_at=article_data['published_at'],
+            # Check if article already exists
+            existing = self.News.query.filter_by(original_url=url).first()
+            if existing:
+                return False
+            
+            # Get article content/summary
+            content = self._get_article_content(entry)
+            
+            # Determine source name from feed URL
+            source_name = self._get_source_name(feed_url)
+            
+            # Get published date
+            published_at = self._get_published_date(entry)
+            
+            # Detect original language from source
+            detected_language = self._detect_language(source_name)
+            
+            # Optional AI enhancement
+            summary = None
+            relevance_score = 7.0  # Default score (above threshold when AI disabled)
+            category = 'general'
+            
+            if self.ai_client and self.ai_client.is_available():
+                try:
+                    # Get AI summary in original language (no translation)
+                    summary = self.ai_client.summarize_news_article(
+                        title=title,
+                        content=content,
+                        language=detected_language,
+                        max_length=150
+                    )
+                    
+                    # Get relevance score
+                    relevance_score = self.ai_client.calculate_relevance_score(
+                        title=title,
+                        content=content
+                    )
+                    
+                    # Simple category detection
+                    category = self._detect_category(title, content)
+                    
+                except Exception as e:
+                    logger.warning(f"AI processing failed for {title}: {e}")
+            
+            # Skip articles with low relevance
+            if relevance_score < self.relevance_threshold:
+                logger.info(f"Skipping article with low relevance ({relevance_score}): {title}")
+                return False
+            
+            # Create and store article
+            article = self.News(
+                title=title,
+                summary=summary or content[:200] + "..." if len(content) > 200 else content,
+                original_url=url,
+                source_name=source_name,
+                relevance_score=relevance_score,
+                language=detected_language,
+                category=category,
+                published_at=published_at,
                 created_at=datetime.utcnow()
             )
             
-            self.db.session.add(news_article)
+            self.db.session.add(article)
             self.db.session.commit()
             
-            logger.info(f"Stored article: {article_data['title'][:50]}...")
+            logger.info(f"Stored article: {title} (score: {relevance_score})")
             return True
             
         except Exception as e:
-            logger.error(f"Failed to store article: {e}")
+            logger.error(f"Error processing article {entry.get('title', 'Unknown')}: {e}")
             self.db.session.rollback()
             return False
     
-    def _cleanup_old_articles(self, days_old: int = 30):
-        """Remove articles older than specified days"""
+    def _get_article_content(self, entry) -> str:
+        """Extract content from RSS entry"""
+        # Try different content fields
+        content = entry.get('description', '')
+        if not content:
+            content = entry.get('summary', '')
+        if not content:
+            content = entry.get('content', [{}])[0].get('value', '') if entry.get('content') else ''
         
+        return content.strip()
+    
+    def _get_source_name(self, feed_url: str) -> str:
+        """Extract source name from feed URL"""
+        domain = urlparse(feed_url).netloc
+        # Simple mapping of common domains
+        source_mapping = {
+            'climbing.com': 'Climbing Magazine',
+            'alpinist.com': 'Alpinist',
+            'planetmountain.com': 'PlanetMountain',
+            'outsideonline.com': 'Outside Magazine',
+            'rockandice.com': 'Rock & Ice',
+            'desnivel.com': 'Desnivel',
+            '8a.nu': '8a.nu',
+            'plezanje.net': 'Plezanje.net',
+            'gore-ljudje.net': 'Gore-Ljudje',
+            'planinci.si': 'Planinci.si',
+            'gore-in-ljudje.net': 'Gore in Ljudje',
+            'hribi.net': 'Hribi.net',
+            'avalanche.si': 'Avalanche.si',
+            'meteo.arso.gov.si': 'ARSO',
+            'avalanche.org': 'Avalanche.org',
+            'mountain-rescue.org': 'Mountain Rescue'
+        }
+        return source_mapping.get(domain, domain)
+    
+    def _get_published_date(self, entry) -> Optional[datetime]:
+        """Extract published date from RSS entry"""
+        for date_field in ['published_parsed', 'updated_parsed']:
+            if hasattr(entry, date_field) and getattr(entry, date_field):
+                try:
+                    time_struct = getattr(entry, date_field)
+                    return datetime(*time_struct[:6])
+                except:
+                    pass
+        return datetime.utcnow()
+    
+    def _detect_language(self, source_name: str) -> str:
+        """Detect language based on source"""
+        # Slovenian sources
+        slovenian_sources = ['Gore-Ljudje', 'Plezanje.net', 'Planinci.si', 'Gore in Ljudje', 'Hribi.net', 'Avalanche.si', 'ARSO']
+        
+        # Spanish sources
+        spanish_sources = ['Desnivel']
+        
+        if any(sl_source in source_name for sl_source in slovenian_sources):
+            return 'sl'
+        elif any(es_source in source_name for es_source in spanish_sources):
+            return 'es'
+        else:
+            return 'en'
+    
+    def _detect_category(self, title: str, content: str) -> str:
+        """Simple category detection based on keywords"""
+        text = (title + ' ' + content).lower()
+        
+        # Simple keyword matching
+        if any(word in text for word in ['varnost', 'nesreča', 'reševanje', 'safety', 'accident']):
+            return 'safety'
+        elif any(word in text for word in ['oprema', 'equipment', 'gear']):
+            return 'equipment'
+        elif any(word in text for word in ['slovenija', 'slovenia', 'alpe', 'triglav']):
+            return 'local'
+        elif any(word in text for word in ['dosežek', 'achievement', 'rekord', 'record']):
+            return 'achievement'
+        elif any(word in text for word in ['odprava', 'expedition', 'himalaja']):
+            return 'expedition'
+        else:
+            return 'general'
+    
+    def _cleanup_old_articles(self):
+        """Remove articles older than 30 days"""
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days_old)
+            cutoff_date = datetime.utcnow() - timedelta(days=30)
             old_articles = self.News.query.filter(self.News.created_at < cutoff_date).all()
             
             for article in old_articles:
                 self.db.session.delete(article)
             
-            self.db.session.commit()
-            logger.info(f"Cleaned up {len(old_articles)} old articles")
-            
+            if old_articles:
+                self.db.session.commit()
+                logger.info(f"Cleaned up {len(old_articles)} old articles")
         except Exception as e:
-            logger.error(f"Failed to cleanup old articles: {e}")
+            logger.error(f"Error cleaning up old articles: {e}")
             self.db.session.rollback()
     
     def get_latest_news(self, limit: int = 5, category: str = None) -> List[Dict]:
-        """Get latest curated news articles"""
+        """
+        Get latest curated news articles with priority system:
+        1. At least 3 new articles daily (from current day)
+        2. Max 5 articles total
+        3. Fill with old articles if needed
+        4. New articles have priority
+        """
+        # Get today's start time
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
         
-        query = self.News.query
-        
+        # Build base query with category filter if specified
+        base_query = self.News.query
         if category:
-            query = query.filter_by(category=category)
+            base_query = base_query.filter_by(category=category)
         
-        articles = query.order_by(
+        # Get today's articles first (priority)
+        today_articles = base_query.filter(
+            self.News.created_at >= today_start
+        ).order_by(
             self.News.relevance_score.desc(),
             self.News.created_at.desc()
-        ).limit(limit).all()
+        ).all()
         
-        return [article.to_dict() for article in articles]
+        # If we have enough from today, just return top articles
+        if len(today_articles) >= limit:
+            return [article.to_dict() for article in today_articles[:limit]]
+        
+        # Otherwise, fill remaining slots with older articles
+        older_articles = base_query.filter(
+            self.News.created_at < today_start
+        ).order_by(
+            self.News.relevance_score.desc(),
+            self.News.created_at.desc()
+        ).limit(limit - len(today_articles)).all()
+        
+        # Combine: today's articles first, then older articles
+        combined = today_articles + older_articles
+        return [article.to_dict() for article in combined[:limit]]
     
     def get_news_by_category(self) -> Dict[str, List[Dict]]:
         """Get news grouped by category"""
-        
-        categories = ['local', 'safety', 'equipment', 'achievement', 'expedition']
+        categories = ['local', 'safety', 'equipment', 'achievement', 'expedition', 'general']
         result = {}
         
         for category in categories:
-            articles = self.News.query.filter_by(
-                category=category
-            ).order_by(
-                self.News.relevance_score.desc()
+            articles = self.News.query.filter_by(category=category).order_by(
+                self.News.relevance_score.desc(),
+                self.News.created_at.desc()
             ).limit(3).all()
             
             result[category] = [article.to_dict() for article in articles]
@@ -339,63 +343,14 @@ class NewsCurator:
         return result
     
     def get_statistics(self) -> Dict:
-        """Get news curation statistics"""
-        
+        """Get simple statistics about news collection"""
         total_articles = self.News.query.count()
-        featured_articles = self.News.query.filter_by(is_featured=True).count()
-        
-        # Articles by category
-        category_stats = {}
-        categories = ['local', 'safety', 'equipment', 'achievement', 'expedition', 'general']
-        
-        for category in categories:
-            count = self.News.query.filter_by(category=category).count()
-            category_stats[category] = count
-        
-        # Recent articles (last 7 days)
-        week_ago = datetime.utcnow() - timedelta(days=7)
-        recent_articles = self.News.query.filter(self.News.created_at >= week_ago).count()
+        recent_articles = self.News.query.filter(
+            self.News.created_at >= datetime.utcnow() - timedelta(days=7)
+        ).count()
         
         return {
             'total_articles': total_articles,
-            'featured_articles': featured_articles,
             'recent_articles': recent_articles,
-            'category_breakdown': category_stats,
             'last_updated': datetime.utcnow().isoformat()
         }
-    
-    def _clean_text(self, text: str) -> str:
-        """Clean HTML tags and normalize text"""
-        
-        if not text:
-            return ''
-        
-        # Remove HTML tags
-        text = re.sub(r'<[^>]+>', '', text)
-        
-        # Decode HTML entities
-        import html
-        text = html.unescape(text)
-        
-        # Normalize whitespace
-        text = ' '.join(text.split())
-        
-        return text.strip()
-    
-    def _parse_date(self, date_str: str) -> Optional[datetime]:
-        """Parse publication date from RSS feed"""
-        
-        if not date_str:
-            return None
-        
-        try:
-            # Try parsing with feedparser's time module
-            import time
-            time_struct = feedparser._parse_date(date_str)
-            if time_struct:
-                return datetime(*time_struct[:6])
-        except:
-            pass
-        
-        # Fallback to current time
-        return datetime.utcnow()

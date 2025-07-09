@@ -9,6 +9,12 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from .config import DEEPSEEK_API_KEY, DEEPSEEK_API_URL, DEFAULT_LANGUAGE
+from .prompts import (
+    HISTORICAL_EVENT_PROMPT_SL, HISTORICAL_EVENT_PROMPT_EN,
+    NEWS_SUMMARY_PROMPT_SL, NEWS_SUMMARY_PROMPT_EN,
+    RELEVANCE_SCORE_PROMPT, TRANSLATION_PROMPT_TO_SL, TRANSLATION_PROMPT_TO_EN,
+    SYSTEM_MESSAGES, DEFAULT_CLUB_INTERESTS, TEMPERATURE_SETTINGS, MAX_TOKEN_SETTINGS
+)
 
 logger = logging.getLogger(__name__)
 
@@ -71,55 +77,22 @@ class DeepSeekClient:
         
         month_day = date
         
+        # Select appropriate prompt template based on language
         if language == 'sl':
-            prompt = f"""
-            Poišči pomemben zgodovinski dogodek iz sveta alpinizma, planinarstva ali gorništva, 
-            ki se je zgodil na današnji dan v zgodovini (poljubno leto).
-            
-            PREDNOSTNO vključi dogodke povezane s:
-            - Slovenskim alpinizmom (Julijske Alpe, Kamniške Alpe, Triglav)
-            - Slovenskimi alpinisti (Tomo Česen, Tomaž Humar, Silvo Karo, etc.)
-            - Vzhodnimi Alpami in sosednjimi gorami
-            - Zgodovino slovenskega gorništva in PZS
-            
-            Če ni slovenskega dogodka, poišči mednarodni dogodek.
-            
-            Odgovori SAMO v JSON formatu z naslednjimi polji:
-            {{
-                "year": leto_dogodka,
-                "title": "kratek_naslov_v_slovenščini",
-                "description": "opis_2_3_stavki_v_slovenščini", 
-                "location": "lokacija",
-                "people": ["ime1", "ime2"],
-                "category": "first_ascent|tragedy|discovery|achievement|expedition"
-            }}
-            
-            Pomembno: Odgovori SAMO z JSON, brez dodatnega besedila.
-            """
+            prompt = HISTORICAL_EVENT_PROMPT_SL
         else:
-            prompt = f"""
-            Find an important historical event from mountaineering, alpinism or climbing 
-            that happened on this day in history (any year).
-            
-            Respond ONLY in JSON format with these fields:
-            {{
-                "year": event_year,
-                "title": "short_title_in_english",
-                "description": "description_2_3_sentences_in_english",
-                "location": "location", 
-                "people": ["name1", "name2"],
-                "category": "first_ascent|tragedy|discovery|achievement|expedition"
-            }}
-            
-            Important: Respond ONLY with JSON, no additional text.
-            """
+            prompt = HISTORICAL_EVENT_PROMPT_EN
         
         messages = [
-            {"role": "system", "content": "You are an expert in mountaineering history. Always respond with valid JSON only."},
+            {"role": "system", "content": SYSTEM_MESSAGES['historical_events']},
             {"role": "user", "content": prompt}
         ]
         
-        response = self._make_request(messages, temperature=0.8, max_tokens=600)
+        response = self._make_request(
+            messages, 
+            temperature=TEMPERATURE_SETTINGS['historical_events'], 
+            max_tokens=MAX_TOKEN_SETTINGS['historical_events']
+        )
         
         if not response:
             return None
@@ -163,33 +136,30 @@ class DeepSeekClient:
             str: Summarized content or None if failed
         """
         
+        # Select appropriate prompt template and format with data
         if language == 'sl':
-            prompt = f"""
-            Povzemi ta članek o alpinizmu/plezanju v slovenščini. 
-            Povzetek naj bo kratek ({max_length} znakov), informativen in zanimiv za člane planinskega društva.
-            
-            Naslov: {title}
-            Vsebina: {content[:2000]}
-            
-            Odgovori SAMO s povzetkom, brez dodatnega besedila.
-            """
+            prompt = NEWS_SUMMARY_PROMPT_SL.format(
+                max_length=max_length,
+                title=title,
+                content=content[:2000]
+            )
         else:
-            prompt = f"""
-            Summarize this mountaineering/climbing article in English.
-            Keep it short ({max_length} characters), informative and interesting for mountaineering club members.
-            
-            Title: {title}
-            Content: {content[:2000]}
-            
-            Respond ONLY with the summary, no additional text.
-            """
+            prompt = NEWS_SUMMARY_PROMPT_EN.format(
+                max_length=max_length,
+                title=title,
+                content=content[:2000]
+            )
         
         messages = [
-            {"role": "system", "content": "You are an expert at summarizing mountaineering content."},
+            {"role": "system", "content": SYSTEM_MESSAGES['news_summary']},
             {"role": "user", "content": prompt}
         ]
         
-        response = self._make_request(messages, temperature=0.3, max_tokens=200)
+        response = self._make_request(
+            messages, 
+            temperature=TEMPERATURE_SETTINGS['news_summary'], 
+            max_tokens=MAX_TOKEN_SETTINGS['news_summary']
+        )
         
         if response and len(response) <= max_length + 50:  # Allow small buffer
             logger.info(f"Summarized article: {title[:50]}...")
@@ -211,35 +181,24 @@ class DeepSeekClient:
             float: Relevance score from 1.0 to 10.0
         """
         
-        interests = club_interests or [
-            'alpinizem', 'plezanje', 'gorništvo', 'varnost', 
-            'oprema', 'julijske alpe', 'slovenija'
-        ]
+        interests = club_interests or DEFAULT_CLUB_INTERESTS
         
-        prompt = f"""
-        Oceni relevantnost tega članka za slovensko planinsko društvo na lestvici 1-10.
-        
-        Kriteriji:
-        - 9-10: Zelo pomembno (varnost, lokalni dogodki, nova oprema)
-        - 7-8: Pomembno (mednarodni alpinizem, tehnike)
-        - 5-6: Zanimivo (splošno plezanje, potovanja)
-        - 3-4: Manj relevantno (oddaljene lokacije, specifični športi)
-        - 1-2: Ni relevantno
-        
-        Interesi društva: {', '.join(interests)}
-        
-        Naslov: {title}
-        Vsebina: {content[:1000]}
-        
-        Odgovori SAMO s številko (npr. 7.5), brez dodatnega besedila.
-        """
+        prompt = RELEVANCE_SCORE_PROMPT.format(
+            interests=', '.join(interests),
+            title=title,
+            content=content[:1000]
+        )
         
         messages = [
-            {"role": "system", "content": "You are an expert at evaluating content relevance for mountaineering clubs."},
+            {"role": "system", "content": SYSTEM_MESSAGES['relevance_score']},
             {"role": "user", "content": prompt}
         ]
         
-        response = self._make_request(messages, temperature=0.2, max_tokens=10)
+        response = self._make_request(
+            messages, 
+            temperature=TEMPERATURE_SETTINGS['relevance_score'], 
+            max_tokens=MAX_TOKEN_SETTINGS['relevance_score']
+        )
         
         if response:
             try:
@@ -266,29 +225,22 @@ class DeepSeekClient:
             str: Translated text or None if failed
         """
         
+        # Select appropriate prompt template and format with text
         if target_language == 'sl':
-            prompt = f"""
-            Prevedi to besedilo v slovenščino. Ohrani terminologijo alpinizma in plezanja.
-            
-            Besedilo: {text}
-            
-            Odgovori SAMO s prevodom, brez dodatnega besedila.
-            """
+            prompt = TRANSLATION_PROMPT_TO_SL.format(text=text)
         else:
-            prompt = f"""
-            Translate this text to English. Preserve mountaineering and climbing terminology.
-            
-            Text: {text}
-            
-            Respond ONLY with the translation, no additional text.
-            """
+            prompt = TRANSLATION_PROMPT_TO_EN.format(text=text)
         
         messages = [
-            {"role": "system", "content": "You are an expert translator specializing in mountaineering content."},
+            {"role": "system", "content": SYSTEM_MESSAGES['translation']},
             {"role": "user", "content": prompt}
         ]
         
-        response = self._make_request(messages, temperature=0.3, max_tokens=500)
+        response = self._make_request(
+            messages, 
+            temperature=TEMPERATURE_SETTINGS['translation'], 
+            max_tokens=MAX_TOKEN_SETTINGS['translation']
+        )
         
         if response:
             logger.info(f"Translated text to {target_language}")
