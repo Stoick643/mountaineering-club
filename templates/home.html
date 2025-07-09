@@ -8,10 +8,10 @@
         <h1 class="display-4 mb-4">Dobrodošli v našem Planinskem Društvu</h1>
         <p class="lead mb-4">Pridružite se nam na neverjetnih dogodivščinah in se povežite z ostalimi ljubitelji gora</p>
         {% if not session.user_id %}
-            <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg me-3">Pridruži se društvu</a>
-            <a href="{{ url_for('login') }}" class="btn btn-outline-light btn-lg">Prijava</a>
+            <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-lg me-3">Pridruži se društvu</a>
+            <a href="{{ url_for('auth.login') }}" class="btn btn-outline-light btn-lg">Prijava</a>
         {% else %}
-            <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-lg">Pojdi na nadzorno ploščo</a>
+            <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary btn-lg">Pojdi na nadzorno ploščo</a>
         {% endif %}
     </div>
 </div>
@@ -104,7 +104,7 @@
                 <h2 class="mb-4">Ready to Start Your Adventure?</h2>
                 <p class="lead mb-4">Join our community of mountain enthusiasts today!</p>
                 {% if not session.user_id %}
-                    <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg">Register Now</a>
+                    <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-lg">Register Now</a>
                 {% endif %}
             </div>
         </div>

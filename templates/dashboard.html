@@ -30,7 +30,7 @@
                             <i class="fas fa-route fa-2x"></i>
                         </div>
                     </div>
-                    <a href="{{ url_for('planned_trips') }}" class="btn btn-outline-light btn-sm mt-2">
+                    <a href="{{ url_for('trips.planned_trips') }}" class="btn btn-outline-light btn-sm mt-2">
                         <i class="fas fa-calendar"></i> Oglej si izlete
                     </a>
                 </div>
@@ -49,7 +49,7 @@
                             <i class="fas fa-mountain fa-2x"></i>
                         </div>
                     </div>
-                    <a href="{{ url_for('create_trip_report') }}" class="btn btn-outline-light btn-sm mt-2">
+                    <a href="{{ url_for('trips.create_trip_report') }}" class="btn btn-outline-light btn-sm mt-2">
                         <i class="fas fa-plus"></i> Add Report
                     </a>
                 </div>
@@ -492,7 +492,52 @@ async function refreshNews() {
     refreshIcon.classList.add('fa-spin');
     
     try {
-        await loadLatestNews(currentNewsCategory);
+        // Check if user is admin
+        const isAdmin = {{ session.is_admin|tojson }};
+        
+        if (isAdmin) {
+            // Admin: Trigger fresh news fetching
+            showNewsLoadingState();
+            
+            const response = await fetch('/api/admin/news/update', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Show success message briefly
+                const newsWidget = document.getElementById('news-widget');
+                const originalHeader = newsWidget.querySelector('.card-header').innerHTML;
+                newsWidget.querySelector('.card-header').innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">
+                            <i class="fas fa-check-circle text-success"></i> 
+                            Novice posodobljene (${data.stats.articles_stored} novih)
+                        </h6>
+                    </div>
+                `;
+                
+                // Restore original header after 3 seconds
+                setTimeout(() => {
+                    newsWidget.querySelector('.card-header').innerHTML = originalHeader;
+                }, 3000);
+                
+                // Load the fresh articles
+                await loadLatestNews(currentNewsCategory);
+            } else {
+                showNewsErrorState();
+            }
+        } else {
+            // Regular user: Just reload from database
+            await loadLatestNews(currentNewsCategory);
+        }
+    } catch (error) {
+        console.error('Error refreshing news:', error);
+        showNewsErrorState();
     } finally {
         refreshIcon.classList.remove('fa-spin');
     }

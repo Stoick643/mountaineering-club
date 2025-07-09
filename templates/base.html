@@ -51,7 +51,7 @@
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
-            <a class="navbar-brand" href="{{ url_for('home') }}">
+            <a class="navbar-brand" href="{{ url_for('main.home') }}">
                 <i class="fas fa-mountain"></i> Planinsko Društvo
             </a>
             
@@ -62,17 +62,17 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('home') }}">Domov</a>
+                        <a class="nav-link" href="{{ url_for('main.home') }}">Domov</a>
                     </li>
                     {% if session.user_id %}
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('dashboard') }}">Nadzorna plošča</a>
+                            <a class="nav-link" href="{{ url_for('main.dashboard') }}">Nadzorna plošča</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('planned_trips') }}">Načrtovani izleti</a>
+                            <a class="nav-link" href="{{ url_for('trips.planned_trips') }}">Načrtovani izleti</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('trip_reports') }}">Poročila o izletih</a>
+                            <a class="nav-link" href="{{ url_for('trips.trip_reports') }}">Poročila o izletih</a>
                         </li>
                         <!-- Chat navigation removed - feature cancelled -->
                         {% if session.is_admin %}
@@ -81,17 +81,17 @@
                                     <i class="fas fa-cogs"></i> Skrbnik
                                 </a>
                                 <ul class="dropdown-menu">
-                                    <li><a class="dropdown-item" href="{{ url_for('admin_panel') }}">
+                                    <li><a class="dropdown-item" href="{{ url_for('admin.panel') }}">
                                         <i class="fas fa-users"></i> Upravljanje uporabnikov
                                     </a></li>
-                                    <li><a class="dropdown-item" href="{{ url_for('admin_announcements') }}">
+                                    <li><a class="dropdown-item" href="{{ url_for('admin.announcements') }}">
                                         <i class="fas fa-bullhorn"></i> Obvestila
                                     </a></li>
                                     <li><hr class="dropdown-divider"></li>
-                                    <li><a class="dropdown-item" href="{{ url_for('create_planned_trip') }}">
+                                    <li><a class="dropdown-item" href="{{ url_for('trips.create_planned_trip') }}">
                                         <i class="fas fa-route"></i> Načrtuj izlet
                                     </a></li>
-                                    <li><a class="dropdown-item" href="{{ url_for('create_announcement') }}">
+                                    <li><a class="dropdown-item" href="{{ url_for('admin.create_announcement') }}">
                                         <i class="fas fa-plus"></i> Novo obvestilo
                                     </a></li>
                                 </ul>
@@ -109,15 +109,15 @@
                             <ul class="dropdown-menu">
                                 <li><a class="dropdown-item" href="#" onclick="showProfile()">Profil</a></li>
                                 <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="{{ url_for('logout') }}">Odjava</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">Odjava</a></li>
                             </ul>
                         </li>
                     {% else %}
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('login') }}">Prijava</a>
+                            <a class="nav-link" href="{{ url_for('auth.login') }}">Prijava</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('register') }}">Registracija</a>
+                            <a class="nav-link" href="{{ url_for('auth.register') }}">Registracija</a>
                         </li>
                     {% endif %}
                 </ul>
@@ -152,11 +152,11 @@
                 <div class="col-md-6">
                     <h5>Hitre povezave</h5>
                     <ul class="list-unstyled">
-                        <li><a href="{{ url_for('home') }}" class="text-light">Domov</a></li>
+                        <li><a href="{{ url_for('main.home') }}" class="text-light">Domov</a></li>
                         {% if session.user_id %}
-                            <li><a href="{{ url_for('dashboard') }}" class="text-light">Nadzorna plošča</a></li>
+                            <li><a href="{{ url_for('main.dashboard') }}" class="text-light">Nadzorna plošča</a></li>
                         {% else %}
-                            <li><a href="{{ url_for('login') }}" class="text-light">Prijava</a></li>
+                            <li><a href="{{ url_for('auth.login') }}" class="text-light">Prijava</a></li>
                         {% endif %}
                     </ul>
                 </div>
