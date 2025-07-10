@@ -361,3 +361,49 @@ def delete_comment(comment_id):
     except Exception as e:
         logger.error(f"Error deleting comment: {e}")
         return error_response('Error deleting comment', 500)
+
+
+@api_bp.route('/debug-aws')
+def debug_aws():
+    """Debug AWS S3 connection - REMOVE AFTER TESTING"""
+    try:
+        import boto3
+        import os
+        from botocore.config import Config
+        
+        # Get env vars
+        access_key = os.environ.get('AWS_ACCESS_KEY_ID')
+        secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY') 
+        region = os.environ.get('AWS_REGION')
+        bucket = os.environ.get('AWS_S3_BUCKET')
+        
+        # Test basic connection
+        s3 = boto3.client(
+            's3',
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+            region_name=region,
+            config=Config(retries={'max_attempts': 1})
+        )
+        
+        # Try to list bucket contents (minimal operation)
+        response = s3.list_objects_v2(Bucket=bucket, MaxKeys=1)
+        
+        return {
+            "success": True,
+            "bucket": bucket,
+            "region": region,
+            "access_key_prefix": access_key[:4] + "..." if access_key else "MISSING",
+            "secret_key_set": bool(secret_key),
+            "object_count": response.get('KeyCount', 0)
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "bucket": os.environ.get('AWS_S3_BUCKET'),
+            "region": os.environ.get('AWS_REGION'),
+            "access_key_set": bool(os.environ.get('AWS_ACCESS_KEY_ID')),
+            "secret_key_set": bool(os.environ.get('AWS_SECRET_ACCESS_KEY'))
+        }
