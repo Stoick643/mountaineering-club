@@ -60,6 +60,20 @@
                         Vir: <span id="event-source"></span>
                     </small>
                 </div>
+                
+                <div class="event-reference mt-2" id="event-reference-container" style="display: none;">
+                    <small>
+                        <i class="fas fa-external-link-alt"></i>
+                        <a href="#" id="event-reference-link" target="_blank" class="text-primary">Preveri vir</a>
+                    </small>
+                </div>
+                
+                <div class="ai-disclaimer mt-2">
+                    <small class="text-muted">
+                        <i class="fas fa-robot"></i>
+                        <em>AI-generirani dogodek - preveri verodostojnost</em>
+                    </small>
+                </div>
             </div>
         </div>
         
@@ -226,6 +240,16 @@ function displayEvent(event) {
         sourceContainer.style.display = 'block';
     } else {
         sourceContainer.style.display = 'none';
+    }
+    
+    // Show reference URL if available
+    const referenceContainer = document.getElementById('event-reference-container');
+    if (event.reference_url && event.reference_url !== 'null') {
+        const referenceLink = document.getElementById('event-reference-link');
+        referenceLink.href = event.reference_url;
+        referenceContainer.style.display = 'block';
+    } else {
+        referenceContainer.style.display = 'none';
     }
     
     showContentState();

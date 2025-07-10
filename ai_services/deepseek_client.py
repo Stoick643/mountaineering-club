@@ -79,7 +79,7 @@ class DeepSeekClient:
         
         # Select appropriate prompt template based on language and format with date
         if language == 'sl':
-            prompt = HISTORICAL_EVENT_PROMPT_SL.format(date=month_day)
+            prompt = HISTORICAL_EVENT_PROMPT_SL
         else:
             prompt = HISTORICAL_EVENT_PROMPT_EN.format(date=month_day)
         

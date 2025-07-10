@@ -6,15 +6,16 @@ Contains all prompt templates used by AI services for content generation.
 # Historical Event Generation Prompts
 HISTORICAL_EVENT_PROMPT_SL = """
 Poišči pomemben zgodovinski dogodek iz sveta alpinizma, planinarstva ali gorništva, 
-ki se je zgodil na datum {date} (format MM-DD, torej mesec-dan, poljubno leto).
+ki se je zgodil na današnji dan (primer: če je danes 10. julij 2025, je na današnji danes leta 2010 datum 10. julij 2010). 
+Lahko je to tudi obletnica rojstva ali smrti znanega alpinista.
 
-PREDNOSTNO vključi dogodke povezane s:
+Prednostno vključi dogodke povezane s:
 - Slovenskim alpinizmom (Julijske Alpe, Kamniške Alpe, Triglav)
 - Slovenskimi alpinisti (Tomo Česen, Tomaž Humar, Silvo Karo, etc.)
-- Vzhodnimi Alpami in sosednjimi gorami
+- Julijskimi Alpami in sosednjimi gorami
 - Zgodovino slovenskega gorništva in PZS
 
-Če ni slovenskega dogodka, poišči mednarodni dogodek.
+POMEMBNO: Če ni slovenskega dogodka, poišči mednarodni dogodek (lahko v angleščini).
 
 Odgovori SAMO v JSON formatu z naslednjimi polji:
 {{
@@ -23,10 +24,13 @@ Odgovori SAMO v JSON formatu z naslednjimi polji:
     "description": "opis_2_3_stavki_v_slovenščini", 
     "location": "lokacija",
     "people": ["ime1", "ime2"],
-    "category": "first_ascent|tragedy|discovery|achievement|expedition"
+    "category": "first_ascent|tragedy|discovery|achievement|expedition",
+    "reference_url": "URL vira (članka)"
 }}
 
-Pomembno: Odgovori SAMO z JSON, brez dodatnega besedila.
+POMEMBNO: 
+- Vrni rezultat samo, če je zraven URL!
+- Odgovori samo z JSON, brez dodatnega besedila.
 """
 
 HISTORICAL_EVENT_PROMPT_EN = """

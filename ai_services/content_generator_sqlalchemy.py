@@ -67,6 +67,7 @@ class HistoricalEventGenerator:
                 location=ai_event.get('location'),
                 people=ai_event.get('people', []),
                 category=ai_event.get('category', 'achievement'),
+                reference_url=ai_event.get('reference_url'),
                 source='AI-generated',
                 language=DEFAULT_LANGUAGE,
                 is_featured=True,

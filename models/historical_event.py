@@ -16,6 +16,7 @@ class HistoricalEvent(db.Model):
     location = db.Column(db.String(200))
     people = db.Column(db.JSON)  # Store people names as JSON array
     category = db.Column(db.String(50))  # first_ascent, tragedy, discovery, etc.
+    reference_url = db.Column(db.String(500))  # Optional reference link
     source = db.Column(db.String(50), default='AI-generated')
     language = db.Column(db.String(5), default='sl')
     is_featured = db.Column(db.Boolean, default=False)
@@ -33,6 +34,7 @@ class HistoricalEvent(db.Model):
             'location': self.location,
             'people': self.people or [],
             'category': self.category,
+            'reference_url': self.reference_url,
             'source': self.source,
             'language': self.language,
             'is_featured': self.is_featured,
