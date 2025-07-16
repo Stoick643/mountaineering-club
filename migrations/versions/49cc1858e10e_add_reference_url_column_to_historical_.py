@@ -1,8 +1,8 @@
-"""Add reference_url to historical_event
+"""Add reference_url column to historical_event table
 
-Revision ID: 2fc1a72b30b8
+Revision ID: 49cc1858e10e
 Revises: afecc8c433fe
-Create Date: 2025-07-16 20:19:39.419892
+Create Date: 2025-07-16 18:05:00.000000
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '2fc1a72b30b8'
+revision = '49cc1858e10e'
 down_revision = 'afecc8c433fe'
 branch_labels = None
 depends_on = None
